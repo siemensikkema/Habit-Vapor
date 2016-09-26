@@ -56,3 +56,4 @@ fastlane/test_output
 #
 
 Habit-Vapor.xcodeproj
+Config/secrets/
