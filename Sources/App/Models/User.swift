@@ -2,7 +2,7 @@ import Auth
 import HTTP
 import Vapor
 
-struct User: Model {
+final class User: Model {
 	typealias Name = String
 	typealias Secret = String
 	typealias Salt = String
@@ -18,8 +18,8 @@ struct User: Model {
 	var id: Node?
 
 	var name: Name
-	var secret: Secret
-	var salt: Salt
+	fileprivate var secret: Secret
+	fileprivate var salt: Salt
 
 	init(name: Name, salt: Salt, secret: Secret) {
 		self.name = name
@@ -91,7 +91,7 @@ extension User: Auth.User {
 		case let authenticator as Authenticator:
 			guard
 				let user = try User.query().filter(Constants.name, authenticator.username).first(),
-				try authenticator.secret(salt: user.salt) == user.secret else {
+				try authenticator.createCredential(salt: user.salt).secret == user.secret else {
 					throw Abort.custom(status: .badRequest,
 					                   message: "User not found or incorrect password")
 			}
@@ -107,6 +107,13 @@ extension User: Auth.User {
 
 	static func register(credentials: Credentials) throws -> Auth.User {
 		throw Abort.custom(status: .notImplemented, message: "")
+	}
+}
+
+extension User {
+	func update(salt: Salt, secret: Secret) {
+		self.salt = salt
+		self.secret = secret
 	}
 }
 

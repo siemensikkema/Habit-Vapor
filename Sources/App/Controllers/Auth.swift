@@ -18,34 +18,51 @@ final class AuthController {
 		hash = drop.hash
 
 		drop.group(path) {
+			$0.post("changePassword", handler: changePassword)
 			$0.post("login", handler: login)
 			$0.post("register", handler: register)
 		}
 	}
 
+	func changePassword(_ request: Request) throws -> ResponseRepresentable {
+		guard let newPassword = request.data["new_password"]?.string else {
+			throw Abort.badRequest
+		}
+
+		let authenticator = try Authenticator(request: request, hash: hash)
+		try request.auth.login(authenticator, persist: false)
+		var user = try request.user()
+
+		let (salt, secret) = try authenticator.createCredential(
+			password: newPassword)
+		user.update(salt: salt, secret: secret)
+		try user.save()
+
+		return token(user: user)
+	}
+
 	func login(_ request: Request) throws -> ResponseRepresentable {
 		let authenticator = try Authenticator(request: request, hash: hash)
 		try request.auth.login(authenticator, persist: false)
+		let user = try request.user()
 
-		guard let userId = try request.user().id?.string else {
-			print("Invalid user id")
-			throw Abort.serverError
-		}
+		return token(user: user)
+	}
 
-		let token = JWT.encode(.hs256(jwtKey)) { builder in
-			builder.expiration = Date() + 10.minutes
+	func token(user: User) -> String {
+		return JWT.encode(.hs256(jwtKey)) { builder in
+			builder.expiration = 10.minutes.fromNow
 			builder.issuedAt = Date()
-			builder["id"] = userId
+			builder["id"] = user.id!.string!
 		}
-
-		return token
 	}
 
 	func register(_ request: Request) throws -> ResponseRepresentable {
 		let authenticator = try Authenticator(request: request, hash: hash)
-		var user = try authenticator.user()
+		var user = try authenticator.createUser()
 		try user.save()
-		return user
+
+		return token(user: user)
 	}
 }
 
@@ -68,12 +85,15 @@ struct Authenticator: Credentials {
 		self.password = password
 	}
 
-	func secret(salt: User.Salt) throws -> User.Secret {
-		return try hash.make(password + salt)
+	func createCredential(
+		salt: User.Salt = BCryptSalt().string,
+		password providedPassword: Password? = nil) throws -> (salt: User.Salt, secret: User.Secret) {
+		
+		return (salt, try hash.make((providedPassword ?? password) + salt))
 	}
 
-	func user() throws -> User {
-		let salt = BCryptSalt().string
-		return User(name: username, salt: salt, secret: try secret(salt: salt))
+	func createUser() throws -> User {
+		let (salt, secret) = try createCredential()
+		return User(name: username, salt: salt, secret: secret)
 	}
 }
