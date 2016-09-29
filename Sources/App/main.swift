@@ -15,7 +15,7 @@ authMiddleware.jwtKey = jwtKey
 // '/auth'
 private let authController = AuthController(jwtKey: jwtKey, hash: drop.hash)
 drop.group("auth") {
-    $0.post("changePassword", handler: authController.changePassword)
+    $0.post("updatePassword", handler: authController.updatePassword)
     $0.post("login", handler: authController.login)
     $0.post("register", handler: authController.register)
 }

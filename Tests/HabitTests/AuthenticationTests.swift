@@ -1,8 +1,10 @@
 @testable import Habit
+import Foundation
 import HTTP
+import Nimble
+import Quick
 import URI
 import Vapor
-import XCTest
 
 final class TestHasher: HashProtocol {
     var defaultKey: Bytes? {
@@ -14,41 +16,67 @@ final class TestHasher: HashProtocol {
     }
 }
 
-final class AuthenticationTests: XCTestCase {
-    let jwtKey = "key".data(using: .utf8)!
+final class AuthenticationSpec: QuickSpec {
+    override func spec() {
+        let jwtKey = "key".data(using: .utf8)!
 
-    func testChangePasswordRequiresDifferentPassword() throws {
-        let hash = TestHasher()
+        describe("update password") {
 
-        var userWasSaved = false
+            let hasher = TestHasher()
+            var authController: AuthController!
+            var userWasSaved: Bool!
 
-        let authController = AuthController(
-            jwtKey: jwtKey,
-            hash: hash,
-            createUser: { (username, salt, secret) in
-                User(name: username, salt: salt, secret: secret)
-            },
-            saveUser: { (user) in
-                userWasSaved = true
-            })
+            beforeEach {
+                userWasSaved = false
+                authController = AuthController(
+                    jwtKey: jwtKey,
+                    hash: hasher,
+                    createUser: { (username, salt, secret) in
+                        User(name: username, salt: salt, secret: secret)
+                    },
+                    saveUser: { (user) in
+                        userWasSaved = true
+                })
+            }
 
-        let body = try JSON(["username": "Elon Musk", "password": "m@rs", "new_password": "m@rs"])
-            .makeBytes()
+            context("same password") {
 
-        let request = try Request(
-            method: .post,
-            uri: "http://www.example.com",
-            headers: ["Content-Type": "application/json; charset=utf-8"],
-            body: .data(body))
+                let request: Request! = {
+                    do {
+                        let body = try JSON([
+                            "username": "Elon Musk",
+                            "password": "m@rs",
+                            "new_password": "m@rs"])
+                            .makeBytes()
 
-        XCTAssertThrowsError(try authController.changePassword(request)) { error in
-            guard let abort = error as? Abort,
-                case .custom(let status, let message) = abort,
-                status == .badRequest, message == "New password must be different" else {
-                    XCTFail("Unexpected error: \(error)")
-                    return
+                        let request = try Request(
+                            method: .post,
+                            uri: "http://www.example.com",
+                            headers: ["Content-Type": "application/json; charset=utf-8"],
+                            body: .data(body))
+                        return request
+                    } catch {
+                        return nil
+                    }
+                }()
+                var authError: Abort?
+
+                beforeEach {
+                    do {
+                        _ = try authController.updatePassword(request)
+                    } catch {
+                        authError = error as? Abort
+                    }
+                }
+
+                it("throws") {
+                    expect(authError) == Abort.custom(status: .badRequest, message: "New password must be different")
+                }
+
+                it("does not save user") {
+                    expect(userWasSaved) == false
+                }
             }
         }
-        XCTAssertFalse(userWasSaved)
     }
 }

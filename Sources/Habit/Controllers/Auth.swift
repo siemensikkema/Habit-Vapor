@@ -30,7 +30,7 @@ public final class AuthController {
         self.saveUser = saveUser
     }
 
-    public func changePassword(_ request: Request) throws -> ResponseRepresentable {
+    public func updatePassword(_ request: Request) throws -> ResponseRepresentable {
         guard let newPassword = request.data["new_password"]?.string else {
             throw Abort.badRequest
         }

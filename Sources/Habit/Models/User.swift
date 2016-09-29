@@ -25,11 +25,15 @@ public final class User: Model {
     fileprivate var salt: Salt
     fileprivate var lastPasswordUpdate: Date
 
-    init(name: Name, salt: Salt, secret: Secret) {
+    convenience init(name: Name, salt: Salt, secret: Secret) {
+        self.init(name: name, salt: salt, secret: secret, lastPasswordUpdate: Date())
+    }
+
+    init(name: Name, salt: Salt, secret: Secret, lastPasswordUpdate: Date) {
+        self.lastPasswordUpdate = lastPasswordUpdate
         self.name = name
         self.salt = salt
         self.secret = secret
-        lastPasswordUpdate = Date()
     }
 
     // NodeInitializable
