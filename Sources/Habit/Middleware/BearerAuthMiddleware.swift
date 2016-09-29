@@ -19,8 +19,8 @@ public final class BearerAuthMiddleware: Middleware {
         user: U.Type = U.self,
         realm: Realm = AuthenticatorRealm(U.self),
         cache: CacheProtocol = MemoryCache()) {
-        let session = CacheSessionManager(cache: cache, realm: realm)
-        let turnstile = Turnstile(sessionManager: session, realm: realm)
+        let sessionManager = CacheSessionManager(cache: cache, realm: realm)
+        let turnstile = Turnstile(sessionManager: sessionManager, realm: realm)
         self.init(turnstile: turnstile)
     }
 

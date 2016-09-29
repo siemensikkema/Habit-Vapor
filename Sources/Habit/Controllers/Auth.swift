@@ -15,19 +15,43 @@ public final class AuthController {
     private let jwtKey: Data
     private let createUser: CreateUser
     private let saveUser: SaveUser
+    private let issueDate: Date? // used for testing
 
     public convenience init(jwtKey: Data, hash: HashProtocol) {
-        self.init(jwtKey: jwtKey, hash: hash, createUser: User.init(name:salt:secret:), saveUser: { try $0.save() })
+        self.init(jwtKey: jwtKey,
+                  hash: hash,
+                  createUser: User.init(name:salt:secret:),
+                  saveUser: { try $0.save() })
     }
 
     init(jwtKey: Data,
          hash: HashProtocol,
+         issueDate: Date? = nil,
          createUser: @escaping CreateUser,
          saveUser: @escaping SaveUser) {
-        self.jwtKey = jwtKey
         self.hash = hash
+        self.jwtKey = jwtKey
+        self.issueDate = issueDate
+
         self.createUser = createUser
         self.saveUser = saveUser
+    }
+
+    public func logIn(_ request: Request) throws -> ResponseRepresentable {
+        let credentials = try UserCredentials(data: request.data, hash: hash)
+        try request.auth.login(credentials, persist: false)
+        let user = try request.user()
+
+        return try token(user: user)
+    }
+
+    public func register(_ request: Request) throws -> ResponseRepresentable {
+        let credentials = try UserCredentials(data: request.data, hash: hash)
+        let hashedPassword = try credentials.hashPassword()
+        var user = createUser(credentials.username, hashedPassword.salt, hashedPassword.secret)
+        try saveUser(&user)
+
+        return try token(user: user)
     }
 
     public func updatePassword(_ request: Request) throws -> ResponseRepresentable {
@@ -46,26 +70,13 @@ public final class AuthController {
         return try token(user: user)
     }
 
-    public func login(_ request: Request) throws -> ResponseRepresentable {
-        let credentials = try UserCredentials(data: request.data, hash: hash)
-        try request.auth.login(credentials, persist: false)
-        let user = try request.user()
-
-        return try token(user: user)
-    }
-
-    public func register(_ request: Request) throws -> ResponseRepresentable {
-        let credentials = try UserCredentials(data: request.data, hash: hash)
-        let hashedPassword = try credentials.hashPassword()
-        var user = createUser(credentials.username, hashedPassword.salt, hashedPassword.secret)
-        try saveUser(&user)
-
-        return try token(user: user)
-    }
-
     private func token(user: User) throws -> String {
         do {
-            return try encode(user.payload, algorithm: .hs256(jwtKey))
+            var payload = user.payload
+            let now = self.issueDate ?? Date()
+            payload.expiration = 10.minutes.from(now)
+            payload.issuedAt = now
+            return try encode(payload, algorithm: .hs256(jwtKey))
         } catch {
             print(error.localizedDescription)
             throw Abort.serverError
@@ -74,6 +85,7 @@ public final class AuthController {
 }
 
 struct UserCredentials: Credentials {
+
     typealias Password = String
 
     let username: User.Name

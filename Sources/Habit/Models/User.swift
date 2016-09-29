@@ -136,8 +136,6 @@ extension User {
 
     var payload: Payload {
         var payload = Payload()
-        payload.expiration = 10.minutes.fromNow
-        payload.issuedAt = Date()
         payload["id"] = id?.string
         payload["last_password_update"] = lastPasswordUpdate
         return payload
