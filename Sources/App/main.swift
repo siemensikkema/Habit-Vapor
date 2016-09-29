@@ -1,24 +1,30 @@
 import Auth
+import Habit
 import Vapor
 import VaporMySQL
 
-let auth = BearerAuthMiddleware(user: User.self)
-let drop = Droplet(
-	availableMiddleware: ["auth": auth],
-	preparations: [User.self],
-	providers: [VaporMySQL.Provider.self])
+private let authMiddleware = BearerAuthMiddleware(user: User.self)
+private let drop = Droplet(
+    availableMiddleware: ["auth": authMiddleware],
+    preparations: [User.self],
+    providers: [VaporMySQL.Provider.self])
 
-// after initializing the droplet, use its config for the auth middleware
-auth.config = drop.config
+private let jwtKey = drop.config.data(for: AppKey.jwt)!
+authMiddleware.jwtKey = jwtKey
 
 // '/auth'
-let authController = AuthController(drop: drop, path: "auth")
+private let authController = AuthController(jwtKey: jwtKey, hash: drop.hash)
+drop.group("auth") {
+    $0.post("changePassword", handler: authController.changePassword)
+    $0.post("login", handler: authController.login)
+    $0.post("register", handler: authController.register)
+}
 
 // '/'
-let credentialError = Abort.custom(status: .forbidden, message: "Invalid credentials")
-let protect = ProtectMiddleware(error: credentialError)
-drop.grouped(protect).get("/") { _ in
-	return "hello"
+private let credentialError = Abort.custom(status: .forbidden, message: "Invalid credentials")
+private let protectMiddleware = ProtectMiddleware(error: credentialError)
+drop.grouped(protectMiddleware).get("/") { _ in
+    return "hello"
 }
 
 drop.run()
