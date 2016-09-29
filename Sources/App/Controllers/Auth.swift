@@ -38,7 +38,7 @@ final class AuthController {
 		user.update(salt: salt, secret: secret)
 		try user.save()
 
-		return token(user: user)
+		return try token(user: user)
 	}
 
 	func login(_ request: Request) throws -> ResponseRepresentable {
@@ -46,15 +46,7 @@ final class AuthController {
 		try request.auth.login(authenticator, persist: false)
 		let user = try request.user()
 
-		return token(user: user)
-	}
-
-	func token(user: User) -> String {
-		return JWT.encode(.hs256(jwtKey)) { builder in
-			builder.expiration = 10.minutes.fromNow
-			builder.issuedAt = Date()
-			builder["id"] = user.id!.string!
-		}
+		return try token(user: user)
 	}
 
 	func register(_ request: Request) throws -> ResponseRepresentable {
@@ -62,8 +54,16 @@ final class AuthController {
 		var user = try authenticator.createUser()
 		try user.save()
 
-		return token(user: user)
+		return try token(user: user)
 	}
+
+    func token(user: User) throws -> String {
+        do {
+            return try encode(user.payload, algorithm: .hs256(jwtKey))
+        } catch {
+            throw Abort.custom(status: .internalServerError, message: error.localizedDescription)
+        }
+    }
 }
 
 struct Authenticator: Credentials {
@@ -85,6 +85,14 @@ struct Authenticator: Credentials {
 		self.password = password
 	}
 
+	/// Hashes password using salt
+	///
+	/// - parameter salt:             salt to use while hashing or nil to create new random salt
+	/// - parameter providedPassword: password to hash or nil to use existing password
+	///
+	/// - throws: when hashing fails
+	///
+	/// - returns: salt and hashed password
 	func createCredential(
 		salt: User.Salt = BCryptSalt().string,
 		password providedPassword: Password? = nil) throws -> (salt: User.Salt, secret: User.Secret) {

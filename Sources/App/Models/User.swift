@@ -1,5 +1,7 @@
 import Auth
+import Foundation
 import HTTP
+import JWT
 import Vapor
 
 final class User: Model {
@@ -10,6 +12,7 @@ final class User: Model {
 	fileprivate struct Constants {
 		static let id = "id"
 		static let name = "name"
+		static let lastPasswordUpdate = "last_password_update"
 		static let salt = "salt"
 		static let secret = "secret"
 	}
@@ -20,17 +23,21 @@ final class User: Model {
 	var name: Name
 	fileprivate var secret: Secret
 	fileprivate var salt: Salt
+	fileprivate var lastPasswordUpdate: Date
 
 	init(name: Name, salt: Salt, secret: Secret) {
 		self.name = name
 		self.salt = salt
 		self.secret = secret
+		lastPasswordUpdate = Date()
 	}
 
 	// NodeInitializable
 	init(node: Node, in context: Context) throws {
 		id = try node.extract(Constants.id)
 		name = try node.extract(Constants.name)
+		lastPasswordUpdate = try node.extract(Constants.lastPasswordUpdate,
+		                                     transform: Date.init(timeIntervalSince1970:))
 		salt = try node.extract(Constants.salt)
 		secret = try node.extract(Constants.secret)
 	}
@@ -41,7 +48,8 @@ extension User {
 	public func makeResponse() throws -> Response {
 		var node = try makeNode()
 
-		// make sure secret and salt stay secret
+		// make sure credential related information stay secret
+		node[Constants.lastPasswordUpdate] = nil
 		node[Constants.secret] = nil
 		node[Constants.salt] = nil
 
@@ -55,6 +63,7 @@ extension User {
 		return try Node(node: [
 			Constants.id: id,
 			Constants.name: name,
+			Constants.lastPasswordUpdate: lastPasswordUpdate.timeIntervalSince1970,
 			Constants.salt: salt,
 			Constants.secret: secret
 			])
@@ -66,6 +75,7 @@ extension User {
 	static func prepare(_ database: Database) throws {
 		try database.create(entity) { users in
 			users.id()
+			users.double(Constants.lastPasswordUpdate)
 			users.string(Constants.name)
 			users.string(Constants.salt)
 			users.string(Constants.secret)
@@ -82,10 +92,13 @@ extension User: Auth.User {
 		let authenticatedUser: User
 
 		switch credentials {
-		case let id as Identifier:
-			guard let user = try User.find(id.id) else {
+		case let credentials as AuthenticatedUserCredentials:
+			guard let user = try User.find(credentials.id) else {
 				throw Abort.custom(status: .badRequest, message: "User not found")
 			}
+            guard user.lastPasswordUpdate <= credentials.lastPasswordUpdate else {
+                throw Abort.custom(status: .forbidden, message: "Incorrect password")
+            }
 			authenticatedUser = user
 
 		case let authenticator as Authenticator:
@@ -112,9 +125,19 @@ extension User: Auth.User {
 
 extension User {
 	func update(salt: Salt, secret: Secret) {
+		lastPasswordUpdate = Date()
 		self.salt = salt
 		self.secret = secret
 	}
+
+    var payload: Payload {
+        var payload = Payload()
+        payload.expiration = 10.minutes.fromNow
+        payload.issuedAt = Date()
+        payload["id"] = id?.string
+        payload["last_password_reset"] = lastPasswordUpdate
+        return payload
+    }
 }
 
 extension Request {

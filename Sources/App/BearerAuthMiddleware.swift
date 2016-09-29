@@ -9,12 +9,12 @@ import Vapor
 final class BearerAuthMiddleware: Middleware {
 	private let turnstile: Turnstile
 
-	var jwtData: Data?
 	var config: Config? {
 		didSet {
 			jwtData = config?.data(for: AppKey.jwt)
 		}
 	}
+	var jwtData: Data!
 
 	init(turnstile: Turnstile) {
 		self.turnstile = turnstile
@@ -34,16 +34,15 @@ final class BearerAuthMiddleware: Middleware {
 		let subject = Subject(turnstile: turnstile)
 		request.storage["subject"] = subject
 
-		if let jwt = request.auth.header?.bearer?.string, let jwtData = jwtData {
+		if  let jwt = request.auth.header?.bearer?.string,
+            let payload = try? decode(jwt, algorithm: .hs256(jwtData)),
+            let credentials = AuthenticatedUserCredentials(payload: payload) {
 
 			do {
-				let payload = try JWT.decode(jwt, algorithm: .hs256(jwtData))
-				if let identifierString = payload["id"] as? String {
-					let identifier = Identifier(id: Node.string(identifierString))
-					try subject.login(credentials: identifier, persist: false)
-				}
+				try subject.login(credentials: credentials, persist: false)
 			} catch {
-				// do nothing, failed login will be caught by ProtectMiddleware
+                print(error)
+				// do nothing, failed login will be handled by ProtectMiddleware
 			}
 		}
 
@@ -51,4 +50,18 @@ final class BearerAuthMiddleware: Middleware {
 
 		return response
 	}
+}
+
+struct AuthenticatedUserCredentials: Credentials {
+    let id: String
+    let lastPasswordUpdate: Date
+
+    init?(payload: Payload) {
+        guard let id: String = payload["id"], let lastPasswordUpdate: Date = payload["last_password_reset"] else {
+            return nil
+        }
+
+        self.id = id
+        self.lastPasswordUpdate = lastPasswordUpdate
+    }
 }
