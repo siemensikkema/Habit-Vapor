@@ -5,7 +5,9 @@ import Essentials
 import Fluent
 import Foundation
 import HTTP
+import JWT
 import Nimble
+import Punctual
 import Quick
 import Turnstile
 import URI
@@ -65,12 +67,14 @@ final class AuthenticationSpec: QuickSpec {
         let jwtKey = "secret".data(using: .utf8)!
         let name = "Elon Musk"
         let password = "m@rs"
-        let token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE0NzUxODI5NDQsImlhdCI6MTQ3NTE4MjM0NCwiaWQiOiIxIiwibGFzdF9wYXNzd29yZF91cGRhdGUiOjE0NzUxODIzNDR9.qWOFt61XcNuzaO_C_sFd_pSD0FVnj8kA5mEKWiTrwkM"
 
         var authController: AuthController!
         var authError: Error?
+        var id: String?
+        var lastPasswordUpdate: Date?
+        var expiration: Date?
+        var issuedAt: Date?
         var userWasSaved: Bool!
-        var response: ResponseRepresentable?
 
         beforeEach {
             authController = AuthController(
@@ -78,13 +82,18 @@ final class AuthenticationSpec: QuickSpec {
                 hash: hasher,
                 issueDate: date,
                 createUser: { (username, salt, secret) in
-                    User(name: username, salt: salt, secret: secret)
+                    User(name: username, salt: salt, secret: secret, lastPasswordUpdate: date)
                 },
                 saveUser: { (user) in
+                    user.id = .number(1)
                     userWasSaved = true
             })
+
             authError = nil
-            response = nil
+            expiration = nil
+            id = nil
+            issuedAt = nil
+            lastPasswordUpdate = nil
             userWasSaved = false
 
             Database.default = Database(MemoryDriver())
@@ -95,12 +104,27 @@ final class AuthenticationSpec: QuickSpec {
             try! user.save()
         }
 
+        func parseResponse(_ response: ResponseRepresentable) {
+            guard let token = response as? String else {
+                return
+            }
+            do {
+                let payload = try decode(token, algorithm: .hs256(jwtKey), verify: false)
+                expiration = payload.expiration
+                id = payload["id"]
+                issuedAt = payload.issuedAt
+                lastPasswordUpdate = payload["last_password_update"]
+            } catch {
+                print(error)
+            }
+        }
+
         describe("login") {
 
             func logIn(username: String, password: String) {
                 do {
                     let request = try Request(body: ["username": username, "password": password])
-                    response = try authController.logIn(request)
+                    parseResponse(try authController.logIn(request))
                 } catch {
                     authError = error
                 }
@@ -112,8 +136,8 @@ final class AuthenticationSpec: QuickSpec {
                     logIn(username: name, password: password)
                 }
 
-                it("throws an error") {
-                    expect(authError as? Abort) == Abort.custom(status: .badRequest, message: "User not found or incorrect password")
+                it("fails") {
+                    expect(authError as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
                 }
             }
 
@@ -124,13 +148,13 @@ final class AuthenticationSpec: QuickSpec {
                     logIn(username: name, password: "")
                 }
 
-                it("throws an error") {
-                    expect(authError as? Abort) == Abort.custom(status: .badRequest, message: "User not found or incorrect password")
+                it("fails") {
+                    expect(authError as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
                 }
             }
 
             context("correct password") {
-                
+
                 beforeEach {
                     createUser()
                     logIn(username: name, password: password)
@@ -140,8 +164,99 @@ final class AuthenticationSpec: QuickSpec {
                     expect(authError).to(beNil())
                 }
 
-                it("returns a token") {
-                    expect(response as? String) == token
+                describe("token") {
+
+                    it("contains an id") {
+                        expect(id) == "1"
+                    }
+
+                    it("contains an issuedAt date") {
+                        expect(issuedAt) == date
+                    }
+
+                    it("contains an expiration date 10 minutes in the future") {
+                        expect(expiration) == 10.minutes.from(date)
+                    }
+
+                    it("contains a lastPasswordUpdate date") {
+                        expect(lastPasswordUpdate) == date
+                    }
+                }
+            }
+        }
+
+        describe("register") {
+
+            func register(username: String, password: String) {
+                do {
+                    let request = try Request(body: ["username": username, "password": password])
+                    parseResponse(try authController.register(request))
+                } catch {
+                    authError = error
+                }
+            }
+
+            context("new and valid user") {
+
+                beforeEach {
+                    register(username: name, password: password)
+                }
+
+                it("succeeds") {
+                    expect(authError).to(beNil())
+                }
+
+                it("saves user") {
+                    expect(userWasSaved) == true
+                }
+
+                describe("token") {
+
+                    it("contains an id") {
+                        expect(id) == "1"
+                    }
+
+                    it("contains an issuedAt date") {
+                        expect(issuedAt) == date
+                    }
+
+                    it("contains an expiration date 10 minutes in the future") {
+                        expect(expiration) == 10.minutes.from(date)
+                    }
+
+                    it("contains a lastPasswordUpdate date") {
+                        expect(lastPasswordUpdate) == date
+                    }
+                }
+            }
+
+            context("existing user") {
+
+                beforeEach {
+                    createUser()
+                    register(username: name, password: password)
+                }
+
+                it("fails") {
+                    expect(authError as? Abort) == .custom(status: .badRequest, message: "User exists")
+                }
+
+                it("does not save user") {
+                    expect(userWasSaved) == false
+                }
+            }
+
+            context("invalid username") {
+
+                beforeEach {
+                    register(username: "", password: password)
+                }
+            }
+
+            context("invalid password") {
+
+                beforeEach {
+                    register(username: name, password: "")
                 }
             }
         }
@@ -151,7 +266,7 @@ final class AuthenticationSpec: QuickSpec {
             func updatePassword(username: String, password: String, newPassword: String) {
                 do {
                     let request = try Request(body: ["username": username, "password": password, "new_password": newPassword])
-                    response = try authController.updatePassword(request)
+                    parseResponse(try authController.updatePassword(request))
                 } catch {
                     authError = error
                 }
@@ -163,8 +278,8 @@ final class AuthenticationSpec: QuickSpec {
                     updatePassword(username: name, password: password, newPassword: password)
                 }
 
-                it("throws an error") {
-                    expect(authError as? Abort) == Abort.custom(status: .badRequest, message: "New password must be different")
+                it("fails") {
+                    expect(authError as? Abort) == .custom(status: .badRequest, message: "New password must be different")
                 }
 
                 it("does not save user") {
@@ -187,10 +302,26 @@ final class AuthenticationSpec: QuickSpec {
                     expect(userWasSaved) == true
                 }
 
-                it("returns a different token") {
-                    let newToken = response as? String
-                    expect(newToken).toNot(beNil())
-                    expect(newToken) != token
+                context("token") {
+                    
+                    describe("token") {
+
+                        it("contains an id") {
+                            expect(id) == "1"
+                        }
+
+                        it("contains an issuedAt date") {
+                            expect(issuedAt) == date
+                        }
+
+                        it("contains an expiration date 10 minutes in the future") {
+                            expect(expiration) == 10.minutes.from(date)
+                        }
+
+                        it("contains a newer lastPasswordUpdate date") {
+                            expect(lastPasswordUpdate) > date
+                        }
+                    }
                 }
             }
         }

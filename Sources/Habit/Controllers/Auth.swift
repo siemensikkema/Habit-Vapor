@@ -48,6 +48,10 @@ public final class AuthController {
     public func register(_ request: Request) throws -> ResponseRepresentable {
         let credentials = try UserCredentials(data: request.data, hash: hash)
         let hashedPassword = try credentials.hashPassword()
+        guard let userExists = try? User.findByName(credentials.username) != nil,
+            userExists == false else {
+                throw Abort.custom(status: .badRequest, message: "User exists")
+        }
         var user = createUser(credentials.username, hashedPassword.salt, hashedPassword.secret)
         try saveUser(&user)
 

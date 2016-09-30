@@ -45,6 +45,10 @@ public final class User: Model {
         salt = try node.extract(Constants.salt)
         secret = try node.extract(Constants.secret)
     }
+
+    static func findByName(_ name: Name) throws -> User? {
+        return try User.query().filter(Constants.name, name).first()
+    }
 }
 
 // ResponseRepresentable
@@ -107,7 +111,7 @@ extension User: Auth.User {
 
         case let credentials as UserCredentials:
             guard
-                let user = try User.query().filter(Constants.name, credentials.username).first(),
+                let user = try User.findByName(credentials.username),
                 try credentials.hashPassword(using: user.salt).secret == user.secret else {
                     throw Abort.custom(status: .badRequest,
                                        message: "User not found or incorrect password")
