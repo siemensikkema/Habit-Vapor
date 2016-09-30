@@ -65,8 +65,8 @@ final class AuthenticationSpec: QuickSpec {
         let date = Date(timeIntervalSince1970: 1475182344)
         let hasher = TestHasher()
         let jwtKey = "secret".data(using: .utf8)!
-        let name = "Elon Musk"
-        let password = "m@rs"
+        let name = "ElonMusk"
+        let password = "m@rsm@rs"
 
         var authController: AuthController!
         var authError: Error?
@@ -100,8 +100,12 @@ final class AuthenticationSpec: QuickSpec {
         }
 
         func createUser() {
-            var user = User(name: name, salt: "", secret: password.bytes.hexString, lastPasswordUpdate: date)
-            try! user.save()
+            do {
+                var user = User(name: try Name(value: name).validated(), salt: "", secret: password.bytes.hexString, lastPasswordUpdate: date)
+                try user.save()
+            } catch {
+                print(error)
+            }
         }
 
         func parseResponse(_ response: ResponseRepresentable) {
@@ -251,12 +255,20 @@ final class AuthenticationSpec: QuickSpec {
                 beforeEach {
                     register(username: "", password: password)
                 }
+
+                it("fails") {
+                    expect(authError as? ValidationErrorProtocol).toNot(beNil())
+                }
             }
 
             context("invalid password") {
 
                 beforeEach {
                     register(username: name, password: "")
+                }
+
+                it("fails") {
+                    expect(authError as? ValidationErrorProtocol).toNot(beNil())
                 }
             }
         }
@@ -302,25 +314,33 @@ final class AuthenticationSpec: QuickSpec {
                     expect(userWasSaved) == true
                 }
 
-                context("token") {
-                    
-                    describe("token") {
+                describe("token") {
 
-                        it("contains an id") {
-                            expect(id) == "1"
-                        }
+                    it("contains an id") {
+                        expect(id) == "1"
+                    }
 
-                        it("contains an issuedAt date") {
-                            expect(issuedAt) == date
-                        }
+                    it("contains an issuedAt date") {
+                        expect(issuedAt) == date
+                    }
 
-                        it("contains an expiration date 10 minutes in the future") {
-                            expect(expiration) == 10.minutes.from(date)
-                        }
+                    it("contains an expiration date 10 minutes in the future") {
+                        expect(expiration) == 10.minutes.from(date)
+                    }
 
-                        it("contains a newer lastPasswordUpdate date") {
-                            expect(lastPasswordUpdate) > date
-                        }
+                    it("contains a newer lastPasswordUpdate date") {
+                        expect(lastPasswordUpdate) > date
+                    }
+                }
+
+                context("invalid new password") {
+
+                    beforeEach {
+                        updatePassword(username: name, password: password, newPassword: "")
+                    }
+
+                    it("fails") {
+                        expect(authError as? ValidationErrorProtocol).toNot(beNil())
                     }
                 }
             }

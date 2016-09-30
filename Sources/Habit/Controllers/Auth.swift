@@ -8,7 +8,7 @@ import Vapor
 
 public final class AuthController {
 
-    typealias CreateUser = (User.Name, User.Salt, User.Secret) -> User
+    typealias CreateUser = (Valid<Name>, User.Salt, User.Secret) -> User
     typealias SaveUser = (inout User) throws -> Void
 
     private let hash: HashProtocol
@@ -37,8 +37,22 @@ public final class AuthController {
         self.saveUser = saveUser
     }
 
+    private func extractValues(_ data: Content) throws ->
+        (username: Name, password: Password, newPassword: Password?) {
+        guard
+            let username = data["username"]?.string.map(Name.init),
+            let password = data["password"]?.string.map(Password.init) else {
+                throw Abort.badRequest
+        }
+        let newPassword = data["new_password"]?.string.map(Password.init)
+        return (username, password, newPassword)
+    }
+
     public func logIn(_ request: Request) throws -> ResponseRepresentable {
-        let credentials = try UserCredentials(data: request.data, hash: hash)
+        let values = try extractValues(request.data)
+        let credentials = UserCredentials(username: values.username,
+                                          password: values.password,
+                                          hash: hash)
         try request.auth.login(credentials, persist: false)
         let user = try request.user()
 
@@ -46,24 +60,37 @@ public final class AuthController {
     }
 
     public func register(_ request: Request) throws -> ResponseRepresentable {
-        let credentials = try UserCredentials(data: request.data, hash: hash)
-        let hashedPassword = try credentials.hashPassword()
-        guard let userExists = try? User.findByName(credentials.username) != nil,
+        let values = try extractValues(request.data)
+        let validUsername: Valid<Name> = try values.username.validated()
+        let validPassword: Valid<Password> = try values.password.validated()
+
+        guard let userExists = try? User.findByName(validUsername.value) != nil,
             userExists == false else {
                 throw Abort.custom(status: .badRequest, message: "User exists")
         }
-        var user = createUser(credentials.username, hashedPassword.salt, hashedPassword.secret)
+
+        let credentials = UserCredentials(username: validUsername.value,
+                                          password: validPassword.value,
+                                          hash: hash)
+        let hashedPassword = try credentials.hashPassword()
+        var user = createUser(validUsername, hashedPassword.salt, hashedPassword.secret)
         try saveUser(&user)
 
         return try token(user: user)
     }
 
     public func updatePassword(_ request: Request) throws -> ResponseRepresentable {
-        guard let newPassword = request.data["new_password"]?.string else {
+        let values = try extractValues(request.data)
+
+        guard let newPassword: Valid<Password> = try values.newPassword?.validated() else {
             throw Abort.badRequest
         }
-
-        let credentials = try UserCredentials(data: request.data, hash: hash)
+        guard newPassword.value != values.password else {
+            throw Abort.custom(status: .badRequest, message: "New password must be different")
+        }
+        let credentials = UserCredentials(username: values.username,
+                                          password: values.password,
+                                          hash: hash)
         try request.auth.login(credentials, persist: false)
         var user = try request.user()
 
@@ -88,25 +115,26 @@ public final class AuthController {
     }
 }
 
+struct Password: Validatable, ValidationSuite, Equatable {
+
+    let value: String
+
+    public static func validate(input value: Password) throws {
+        try Count.min(8).validate(input: value.value)
+    }
+
+    static func == (lhs: Password, rhs: Password) -> Bool {
+        return lhs.value == rhs.value
+    }
+}
+
 struct UserCredentials: Credentials {
 
-    typealias Password = String
-
-    let username: User.Name
+    let username: Name
     private let hash: HashProtocol
     private let password: Password
 
-    init(data: Content, hash: HashProtocol) throws {
-        guard
-            let username = data["username"]?.string,
-            let password = data["password"]?.string else {
-                throw Abort.badRequest
-        }
-
-        if let newPassword = data["new_password"]?.string, newPassword == password {
-            throw Abort.custom(status: .badRequest, message: "New password must be different")
-        }
-
+    init(username: Name, password: Password, hash: HashProtocol) {
         self.hash = hash
         self.username = username
         self.password = password
@@ -122,8 +150,8 @@ struct UserCredentials: Credentials {
     /// - throws: when hashing fails
     ///
     /// - returns: salt and hashed password
-    func hashPassword(_ providedPassword: Password? = nil,
+    func hashPassword(_ providedPassword: Valid<Password>? = nil,
                       using salt: User.Salt = BCryptSalt().string) throws -> HashedPassword {
-        return (try hash.make((providedPassword ?? password) + salt), salt)
+        return (try hash.make((providedPassword?.value.value ?? password.value) + salt), salt)
     }
 }

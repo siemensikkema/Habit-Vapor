@@ -4,8 +4,21 @@ import HTTP
 import JWT
 import Vapor
 
+struct Name: ValidationSuite, Validatable {
+
+    let value: String
+
+    public static func validate(input value: Name) throws {
+        let evaluation = OnlyAlphanumeric.self
+            && Count.min(2)
+            && Count.max(50)
+
+        try evaluation.validate(input: value.value)
+    }
+}
+
 public final class User: Model {
-    typealias Name = String
+    
     typealias Secret = String
     typealias Salt = String
 
@@ -25,13 +38,13 @@ public final class User: Model {
     fileprivate var salt: Salt
     fileprivate var lastPasswordUpdate: Date
 
-    convenience init(name: Name, salt: Salt, secret: Secret) {
+    convenience init(name: Valid<Name>, salt: Salt, secret: Secret) {
         self.init(name: name, salt: salt, secret: secret, lastPasswordUpdate: Date())
     }
 
-    init(name: Name, salt: Salt, secret: Secret, lastPasswordUpdate: Date) {
+    init(name: Valid<Name>, salt: Salt, secret: Secret, lastPasswordUpdate: Date) {
         self.lastPasswordUpdate = lastPasswordUpdate
-        self.name = name
+        self.name = name.value
         self.salt = salt
         self.secret = secret
     }
@@ -39,7 +52,7 @@ public final class User: Model {
     // NodeInitializable
     public init(node: Node, in context: Context) throws {
         id = try node.extract(Constants.id)
-        name = try node.extract(Constants.name)
+        name = Name(value: try node.extract(Constants.name))
         lastPasswordUpdate = try node.extract(Constants.lastPasswordUpdate,
                                               transform: Date.init(timeIntervalSince1970:))
         salt = try node.extract(Constants.salt)
@@ -47,7 +60,7 @@ public final class User: Model {
     }
 
     static func findByName(_ name: Name) throws -> User? {
-        return try User.query().filter(Constants.name, name).first()
+        return try User.query().filter(Constants.name, name.value).first()
     }
 }
 
@@ -70,7 +83,7 @@ extension User {
     public func makeNode(context: Context) throws -> Node {
         return try Node(node: [
             Constants.id: id,
-            Constants.name: name,
+            Constants.name: name.value,
             Constants.lastPasswordUpdate: lastPasswordUpdate.timeIntervalSince1970,
             Constants.salt: salt,
             Constants.secret: secret
