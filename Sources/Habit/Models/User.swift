@@ -22,7 +22,7 @@ public final class User: Model {
     typealias Secret = String
     typealias Salt = String
 
-    fileprivate struct Constants {
+    struct Constants {
         static let id = "id"
         static let name = "name"
         static let lastPasswordUpdate = "last_password_update"
@@ -153,8 +153,8 @@ extension User {
 
     var payload: Payload {
         var payload = Payload()
-        payload["id"] = id?.string
-        payload["last_password_update"] = lastPasswordUpdate
+        payload[Constants.id] = id?.string
+        payload[Constants.lastPasswordUpdate] = lastPasswordUpdate
         return payload
     }
 }

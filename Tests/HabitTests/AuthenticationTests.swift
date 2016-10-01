@@ -92,7 +92,7 @@ final class AuthenticationSpec: QuickSpec {
         let hasher = TestHasher()
         let jwtKey = "secret".data(using: .utf8)!
         let name = "ElonMusk"
-        let password = "m@rsm@rs"
+        let password = "g0t0m@rs"
 
         var authError: Error?
         var controller: AuthController!
