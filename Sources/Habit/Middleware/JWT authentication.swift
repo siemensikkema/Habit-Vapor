@@ -6,7 +6,8 @@ import JWT
 import Turnstile
 import Vapor
 
-public final class BearerAuthMiddleware: Middleware {
+public final class JWTAuthentication: Middleware {
+
     private let turnstile: Turnstile
 
     public var jwtKey: Data!

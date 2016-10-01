@@ -1,6 +1,5 @@
 @testable import Habit
 import Auth
-import Cache
 import Essentials
 import Fluent
 import Foundation
@@ -9,8 +8,6 @@ import JWT
 import Nimble
 import Punctual
 import Quick
-import Turnstile
-import URI
 import Vapor
 
 final class TestHasher: HashProtocol {
@@ -24,57 +21,7 @@ final class TestHasher: HashProtocol {
     }
 }
 
-extension Turnstile {
-
-    static var testTurnstile: Turnstile {
-        let cache = MemoryCache()
-        let realm = AuthenticatorRealm(User.self)
-        let sessionManager = CacheSessionManager(cache: cache, realm: realm)
-        return Turnstile(sessionManager: sessionManager, realm: realm)
-    }
-}
-
-extension Request {
-
-    convenience init(body: [String: String]) throws {
-        try self.init(body: JSON(Node(dictionary: body)))
-    }
-
-    convenience init(
-        body: BodyRepresentable = "",
-        headers: [HeaderKey: String] = ["Content-Type": "application/json; charset=utf-8"]) throws {
-        try self.init(
-            method: .post,
-            uri: "http://www.example.com",
-            headers: headers,
-            body: body.makeBody())
-
-        let subject = Subject(turnstile: .testTurnstile)
-        storage["subject"] = subject
-    }
-}
-
-extension Node {
-
-    init(dictionary: [String: String]) {
-        var converted: [String: Node] = [:]
-
-        dictionary.forEach {
-            converted[$0.key] = .string($0.value)
-        }
-
-        self = .object(converted)
-    }
-}
-
-struct TestResponder: Responder {
-
-    func respond(to request: Request) throws -> Response {
-        return Response()
-    }
-}
-
-func errorFrom(_ expression: () throws -> Void) -> Error? {
+func error(from expression: () throws -> Void) -> Error? {
     do {
         try expression()
         return nil
@@ -183,7 +130,7 @@ final class AuthenticationSpec: QuickSpec {
 
             let nextResponder = TestResponder()
 
-            var middleware: BearerAuthMiddleware!
+            var middleware: JWTAuthentication!
             var request: Request!
             var user: Habit.User!
 
@@ -201,7 +148,7 @@ final class AuthenticationSpec: QuickSpec {
             }
 
             beforeEach {
-                middleware = BearerAuthMiddleware(turnstile: .testTurnstile)
+                middleware = JWTAuthentication(turnstile: .testTurnstile)
                 middleware.jwtKey = jwtKey
             }
 
@@ -212,7 +159,7 @@ final class AuthenticationSpec: QuickSpec {
                 }
 
                 it("does not log in user") {
-                    expect(errorFrom(getUser) as? AuthError) == .notAuthenticated
+                    expect(error(from: getUser) as? AuthError) == .notAuthenticated
                 }
             }
 

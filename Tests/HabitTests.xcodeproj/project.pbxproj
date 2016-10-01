@@ -7,7 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5FC42CAE1D9D887800A3130E /* AuthenticationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FC42C721D9D7DD400A3130E /* AuthenticationTests.swift */; };
+		5F81C6601D9FC5450012F3E0 /* Authentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F81C65E1D9FC5450012F3E0 /* Authentication.swift */; };
+		5F81C6611D9FC5450012F3E0 /* User endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F81C65F1D9FC5450012F3E0 /* User endpoints.swift */; };
+		5F81C6631D9FCA940012F3E0 /* Request.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F81C6621D9FCA940012F3E0 /* Request.swift */; };
+		5F81C6651D9FD2E80012F3E0 /* TestResponder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F81C6641D9FD2E80012F3E0 /* TestResponder.swift */; };
+		5F81C6671D9FD3080012F3E0 /* Turnstile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F81C6661D9FD3080012F3E0 /* Turnstile.swift */; };
 		5FC42CB21D9D89FC00A3130E /* Nimble.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5FC42CB01D9D89FC00A3130E /* Nimble.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		5FC42CB31D9D89FC00A3130E /* Quick.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5FC42CB11D9D89FC00A3130E /* Quick.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		5FC42CB41D9D8A1F00A3130E /* Nimble.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FC42CB01D9D89FC00A3130E /* Nimble.framework */; };
@@ -355,8 +359,12 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		5F81C65E1D9FC5450012F3E0 /* Authentication.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Authentication.swift; sourceTree = "<group>"; };
+		5F81C65F1D9FC5450012F3E0 /* User endpoints.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "User endpoints.swift"; sourceTree = "<group>"; };
+		5F81C6621D9FCA940012F3E0 /* Request.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Request.swift; sourceTree = "<group>"; };
+		5F81C6641D9FD2E80012F3E0 /* TestResponder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestResponder.swift; sourceTree = "<group>"; };
+		5F81C6661D9FD3080012F3E0 /* Turnstile.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Turnstile.swift; sourceTree = "<group>"; };
 		5FC42BDD1D9D7D9500A3130E /* Habit-Vapor.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = "Habit-Vapor.xcodeproj"; path = "../Habit-Vapor.xcodeproj"; sourceTree = "<group>"; };
-		5FC42C721D9D7DD400A3130E /* AuthenticationTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AuthenticationTests.swift; sourceTree = "<group>"; };
 		5FC42CA41D9D862400A3130E /* HabitTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HabitTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5FC42CB01D9D89FC00A3130E /* Nimble.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Nimble.framework; path = Carthage/Build/Mac/Nimble.framework; sourceTree = "<group>"; };
 		5FC42CB11D9D89FC00A3130E /* Quick.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quick.framework; path = Carthage/Build/Mac/Quick.framework; sourceTree = "<group>"; };
@@ -376,6 +384,15 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		5F81C65D1D9FC5450012F3E0 /* Specs */ = {
+			isa = PBXGroup;
+			children = (
+				5F81C65E1D9FC5450012F3E0 /* Authentication.swift */,
+				5F81C65F1D9FC5450012F3E0 /* User endpoints.swift */,
+			);
+			path = Specs;
+			sourceTree = "<group>";
+		};
 		5FC42B321D9D799E00A3130E = {
 			isa = PBXGroup;
 			children = (
@@ -398,7 +415,10 @@
 			isa = PBXGroup;
 			children = (
 				5FC42CB91D9D8C6000A3130E /* Abort+Equatable.swift */,
-				5FC42C721D9D7DD400A3130E /* AuthenticationTests.swift */,
+				5F81C6621D9FCA940012F3E0 /* Request.swift */,
+				5F81C6641D9FD2E80012F3E0 /* TestResponder.swift */,
+				5F81C6661D9FD3080012F3E0 /* Turnstile.swift */,
+				5F81C65D1D9FC5450012F3E0 /* Specs */,
 			);
 			path = HabitTests;
 			sourceTree = "<group>";
@@ -858,8 +878,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5FC42CAE1D9D887800A3130E /* AuthenticationTests.swift in Sources */,
+				5F81C6651D9FD2E80012F3E0 /* TestResponder.swift in Sources */,
 				5FC42CBA1D9D8C6000A3130E /* Abort+Equatable.swift in Sources */,
+				5F81C6671D9FD3080012F3E0 /* Turnstile.swift in Sources */,
+				5F81C6631D9FCA940012F3E0 /* Request.swift in Sources */,
+				5F81C6611D9FC5450012F3E0 /* User endpoints.swift in Sources */,
+				5F81C6601D9FC5450012F3E0 /* Authentication.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1017,6 +1041,7 @@
 				5FC42CAB1D9D862400A3130E /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
