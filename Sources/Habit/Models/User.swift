@@ -67,14 +67,7 @@ public final class User: Model {
 // ResponseRepresentable
 extension User {
     public func makeResponse() throws -> Response {
-        var node = try makeNode()
-
-        // make sure credential related information stay secret
-        node[Constants.lastPasswordUpdate] = nil
-        node[Constants.secret] = nil
-        node[Constants.salt] = nil
-
-        return try JSON(node).makeResponse()
+        return try JSON([Constants.name: .string(name.value)]).makeResponse()
     }
 }
 

@@ -6,7 +6,8 @@ import JWT
 import Turnstile
 import Vapor
 
-public final class BearerAuthMiddleware: Middleware {
+public final class JWTAuthentication: Middleware {
+
     private let turnstile: Turnstile
 
     public var jwtKey: Data!
@@ -47,6 +48,11 @@ public final class BearerAuthMiddleware: Middleware {
 struct AuthenticatedUserCredentials: Credentials {
     let id: String
     let lastPasswordUpdate: Date
+
+    init(id: String, lastPasswordUpdate: Date) {
+        self.id = id
+        self.lastPasswordUpdate = lastPasswordUpdate
+    }
 
     init?(payload: Payload) {
         guard

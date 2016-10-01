@@ -1,6 +1,5 @@
 @testable import Habit
 import Auth
-import Cache
 import Essentials
 import Fluent
 import Foundation
@@ -9,77 +8,20 @@ import JWT
 import Nimble
 import Punctual
 import Quick
-import Turnstile
-import URI
 import Vapor
 
-final class TestHasher: HashProtocol {
+extension Habit.User {
 
-    var defaultKey: Bytes? {
-        return nil
-    }
+    static let testPassword = "g0t0m@rs"
+    static let testName = "ElonMusk"
 
-    func make(_ string: Bytes, key: Bytes?) throws -> Bytes {
-        return string
-    }
-}
-
-extension Turnstile {
-
-    static var testTurnstile: Turnstile {
-        let cache = MemoryCache()
-        let realm = AuthenticatorRealm(User.self)
-        let sessionManager = CacheSessionManager(cache: cache, realm: realm)
-        return Turnstile(sessionManager: sessionManager, realm: realm)
-    }
-}
-
-extension Request {
-
-    convenience init(body: [String: String]) throws {
-        try self.init(body: JSON(Node(dictionary: body)))
-    }
-
-    convenience init(
-        body: BodyRepresentable = "",
-        headers: [HeaderKey: String] = ["Content-Type": "application/json; charset=utf-8"]) throws {
-        try self.init(
-            method: .post,
-            uri: "http://www.example.com",
-            headers: headers,
-            body: body.makeBody())
-
-        let subject = Subject(turnstile: .testTurnstile)
-        storage["subject"] = subject
-    }
-}
-
-extension Node {
-
-    init(dictionary: [String: String]) {
-        var converted: [String: Node] = [:]
-
-        dictionary.forEach {
-            converted[$0.key] = .string($0.value)
-        }
-
-        self = .object(converted)
-    }
-}
-
-struct TestResponder: Responder {
-
-    func respond(to request: Request) throws -> Response {
-        return Response()
-    }
-}
-
-func errorFrom(_ expression: () throws -> Void) -> Error? {
-    do {
-        try expression()
-        return nil
-    } catch {
-        return error
+    static func testUser(name: String = testName,
+                         password: String = testPassword,
+                         date: Date = Date()) -> Habit.User {
+        return Habit.User(name: try! Name(value: testName).validated(),
+                          salt: "",
+                          secret: testPassword.bytes.hexString,
+                          lastPasswordUpdate: date)
     }
 }
 
@@ -91,10 +33,8 @@ final class AuthenticationSpec: QuickSpec {
         let date = Date(timeIntervalSince1970: Date().timeIntervalSince1970)
         let hasher = TestHasher()
         let jwtKey = "secret".data(using: .utf8)!
-        let name = "ElonMusk"
-        let password = "g0t0m@rs"
 
-        var authError: Error?
+        var error: Error?
         var controller: AuthController!
         var expiration: Date?
         var id: String?
@@ -105,7 +45,7 @@ final class AuthenticationSpec: QuickSpec {
 
         func createUser() {
             do {
-                var user = User(name: try Name(value: name).validated(), salt: "", secret: password.bytes.hexString, lastPasswordUpdate: date)
+                var user = Habit.User.testUser(date: date)
                 try user.save()
             } catch {
                 print(error)
@@ -116,8 +56,8 @@ final class AuthenticationSpec: QuickSpec {
             do {
                 let request = try Request(body: ["username": username, "password": password])
                 parseResponse(try controller.logIn(request))
-            } catch {
-                authError = error
+            } catch let e {
+                error = e
             }
         }
 
@@ -125,8 +65,8 @@ final class AuthenticationSpec: QuickSpec {
             do {
                 let request = try Request(body: ["username": username, "password": password])
                 parseResponse(try controller.register(request))
-            } catch {
-                authError = error
+            } catch let e {
+                error = e
             }
         }
 
@@ -134,8 +74,8 @@ final class AuthenticationSpec: QuickSpec {
             do {
                 let request = try Request(body: ["username": username, "password": password, "new_password": newPassword])
                 parseResponse(try controller.updatePassword(request))
-            } catch {
-                authError = error
+            } catch let e {
+                error = e
             }
         }
 
@@ -168,7 +108,7 @@ final class AuthenticationSpec: QuickSpec {
                     userWasSaved = true
             })
 
-            authError = nil
+            error = nil
             expiration = nil
             id = nil
             issuedAt = nil
@@ -183,7 +123,7 @@ final class AuthenticationSpec: QuickSpec {
 
             let nextResponder = TestResponder()
 
-            var middleware: BearerAuthMiddleware!
+            var middleware: JWTAuthentication!
             var request: Request!
             var user: Habit.User!
 
@@ -201,7 +141,7 @@ final class AuthenticationSpec: QuickSpec {
             }
 
             beforeEach {
-                middleware = BearerAuthMiddleware(turnstile: .testTurnstile)
+                middleware = JWTAuthentication(turnstile: .testTurnstile)
                 middleware.jwtKey = jwtKey
             }
 
@@ -212,14 +152,14 @@ final class AuthenticationSpec: QuickSpec {
                 }
 
                 it("does not log in user") {
-                    expect(errorFrom(getUser) as? AuthError) == .notAuthenticated
+                    expect(catchError(from: getUser) as? AuthError) == .notAuthenticated
                 }
             }
 
             describe("valid user") {
 
                 beforeEach {
-                    register(username: name, password: password)
+                    register(username: Habit.User.testName, password: Habit.User.testPassword)
                     accessProtectedEndpointUsingToken(token)
                     try? getUser()
                 }
@@ -237,11 +177,11 @@ final class AuthenticationSpec: QuickSpec {
                 context("user not found") {
 
                     beforeEach {
-                        logIn(username: name, password: password)
+                        logIn(username: Habit.User.testName, password: Habit.User.testPassword)
                     }
 
                     it("fails") {
-                        expect(authError as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
+                        expect(error as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
                     }
                 }
 
@@ -249,11 +189,11 @@ final class AuthenticationSpec: QuickSpec {
 
                     beforeEach {
                         createUser()
-                        logIn(username: name, password: "")
+                        logIn(username: Habit.User.testName, password: "")
                     }
 
                     it("fails") {
-                        expect(authError as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
+                        expect(error as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
                     }
                 }
 
@@ -261,11 +201,11 @@ final class AuthenticationSpec: QuickSpec {
 
                     beforeEach {
                         createUser()
-                        logIn(username: name, password: password)
+                        logIn(username: Habit.User.testName, password: Habit.User.testPassword)
                     }
 
                     it("succeeds") {
-                        expect(authError).to(beNil())
+                        expect(error).to(beNil())
                     }
 
                     describe("token") {
@@ -294,11 +234,11 @@ final class AuthenticationSpec: QuickSpec {
                 context("new and valid user") {
 
                     beforeEach {
-                        register(username: name, password: password)
+                        register(username: Habit.User.testName, password: Habit.User.testPassword)
                     }
 
                     it("succeeds") {
-                        expect(authError).to(beNil())
+                        expect(error).to(beNil())
                     }
 
                     it("saves user") {
@@ -329,11 +269,11 @@ final class AuthenticationSpec: QuickSpec {
 
                     beforeEach {
                         createUser()
-                        register(username: name, password: password)
+                        register(username: Habit.User.testName, password: Habit.User.testPassword)
                     }
 
                     it("fails") {
-                        expect(authError as? Abort) == .custom(status: .badRequest, message: "User exists")
+                        expect(error as? Abort) == .custom(status: .badRequest, message: "User exists")
                     }
 
                     it("does not save user") {
@@ -344,22 +284,22 @@ final class AuthenticationSpec: QuickSpec {
                 context("invalid username") {
 
                     beforeEach {
-                        register(username: "", password: password)
+                        register(username: "", password: Habit.User.testPassword)
                     }
 
                     it("fails") {
-                        expect(authError as? ValidationErrorProtocol).toNot(beNil())
+                        expect(error as? ValidationErrorProtocol).toNot(beNil())
                     }
                 }
 
                 context("invalid password") {
 
                     beforeEach {
-                        register(username: name, password: "")
+                        register(username: Habit.User.testName, password: "")
                     }
 
                     it("fails") {
-                        expect(authError as? ValidationErrorProtocol).toNot(beNil())
+                        expect(error as? ValidationErrorProtocol).toNot(beNil())
                     }
                 }
             }
@@ -369,11 +309,11 @@ final class AuthenticationSpec: QuickSpec {
                 context("same password") {
 
                     beforeEach {
-                        updatePassword(username: name, password: password, newPassword: password)
+                        updatePassword(username: Habit.User.testName, password: Habit.User.testPassword, newPassword: Habit.User.testPassword)
                     }
 
                     it("fails") {
-                        expect(authError as? Abort) == .custom(status: .badRequest, message: "New password must be different")
+                        expect(error as? Abort) == .custom(status: .badRequest, message: "New password must be different")
                     }
                     
                     it("does not save user") {
@@ -385,11 +325,11 @@ final class AuthenticationSpec: QuickSpec {
                     
                     beforeEach {
                         createUser()
-                        updatePassword(username: name, password: password, newPassword: "\(password)2")
+                        updatePassword(username: Habit.User.testName, password: Habit.User.testPassword, newPassword: "\(Habit.User.testPassword)2")
                     }
                     
                     it("succeeds") {
-                        expect(authError).to(beNil())
+                        expect(error).to(beNil())
                     }
                     
                     it("saves user") {
@@ -418,11 +358,11 @@ final class AuthenticationSpec: QuickSpec {
                     context("invalid new password") {
                         
                         beforeEach {
-                            updatePassword(username: name, password: password, newPassword: "")
+                            updatePassword(username: Habit.User.testName, password: Habit.User.testPassword, newPassword: "")
                         }
                         
                         it("fails") {
-                            expect(authError as? ValidationErrorProtocol).toNot(beNil())
+                            expect(error as? ValidationErrorProtocol).toNot(beNil())
                         }
                     }
                 }
