@@ -28,21 +28,19 @@ public final class BearerAuthMiddleware: Middleware {
         let subject = Subject(turnstile: turnstile)
         request.storage["subject"] = subject
 
-        if  let jwt = request.auth.header?.bearer?.string,
-            let payload = try? decode(jwt, algorithm: .hs256(jwtKey)),
-            let credentials = AuthenticatedUserCredentials(payload: payload) {
+        do {
+            if  let jwt = request.auth.header?.bearer?.string,
+                let credentials = AuthenticatedUserCredentials(
+                    payload: try decode(jwt, algorithm: .hs256(jwtKey))) {
 
-            do {
                 try subject.login(credentials: credentials, persist: false)
-            } catch {
-                print(error)
-                // do nothing, failed login will be handled by ProtectMiddleware
             }
+        } catch {
+            print(error)
+            // do nothing, failed login will be handled by ProtectMiddleware
         }
 
-        let response = try next.respond(to: request)
-
-        return response
+        return try next.respond(to: request)
     }
 }
 

@@ -24,24 +24,32 @@ final class TestHasher: HashProtocol {
     }
 }
 
+extension Turnstile {
+
+    static var testTurnstile: Turnstile {
+        let cache = MemoryCache()
+        let realm = AuthenticatorRealm(User.self)
+        let sessionManager = CacheSessionManager(cache: cache, realm: realm)
+        return Turnstile(sessionManager: sessionManager, realm: realm)
+    }
+}
+
 extension Request {
 
     convenience init(body: [String: String]) throws {
         try self.init(body: JSON(Node(dictionary: body)))
     }
 
-    convenience init(body: BodyRepresentable) throws {
+    convenience init(
+        body: BodyRepresentable = "",
+        headers: [HeaderKey: String] = ["Content-Type": "application/json; charset=utf-8"]) throws {
         try self.init(
             method: .post,
             uri: "http://www.example.com",
-            headers: ["Content-Type": "application/json; charset=utf-8"],
+            headers: headers,
             body: body.makeBody())
 
-        let cache = MemoryCache()
-        let realm = AuthenticatorRealm(User.self)
-        let sessionManager = CacheSessionManager(cache: cache, realm: realm)
-        let turnstile = Turnstile(sessionManager: sessionManager, realm: realm)
-        let subject = Subject(turnstile: turnstile)
+        let subject = Subject(turnstile: .testTurnstile)
         storage["subject"] = subject
     }
 }
@@ -59,45 +67,41 @@ extension Node {
     }
 }
 
+struct TestResponder: Responder {
+
+    func respond(to request: Request) throws -> Response {
+        return Response()
+    }
+}
+
+func errorFrom(_ expression: () throws -> Void) -> Error? {
+    do {
+        try expression()
+        return nil
+    } catch {
+        return error
+    }
+}
+
 final class AuthenticationSpec: QuickSpec {
 
     override func spec() {
-        let date = Date(timeIntervalSince1970: 1475182344)
+
+        // initializing date this way enables comparison
+        let date = Date(timeIntervalSince1970: Date().timeIntervalSince1970)
         let hasher = TestHasher()
         let jwtKey = "secret".data(using: .utf8)!
         let name = "ElonMusk"
         let password = "m@rsm@rs"
 
-        var authController: AuthController!
         var authError: Error?
-        var id: String?
-        var lastPasswordUpdate: Date?
+        var controller: AuthController!
         var expiration: Date?
+        var id: String?
         var issuedAt: Date?
+        var lastPasswordUpdate: Date?
+        var token: String!
         var userWasSaved: Bool!
-
-        beforeEach {
-            authController = AuthController(
-                jwtKey: jwtKey,
-                hash: hasher,
-                issueDate: date,
-                createUser: { (username, salt, secret) in
-                    User(name: username, salt: salt, secret: secret, lastPasswordUpdate: date)
-                },
-                saveUser: { (user) in
-                    user.id = .number(1)
-                    userWasSaved = true
-            })
-
-            authError = nil
-            expiration = nil
-            id = nil
-            issuedAt = nil
-            lastPasswordUpdate = nil
-            userWasSaved = false
-
-            Database.default = Database(MemoryDriver())
-        }
 
         func createUser() {
             do {
@@ -108,12 +112,40 @@ final class AuthenticationSpec: QuickSpec {
             }
         }
 
+        func logIn(username: String, password: String) {
+            do {
+                let request = try Request(body: ["username": username, "password": password])
+                parseResponse(try controller.logIn(request))
+            } catch {
+                authError = error
+            }
+        }
+
+        func register(username: String, password: String) {
+            do {
+                let request = try Request(body: ["username": username, "password": password])
+                parseResponse(try controller.register(request))
+            } catch {
+                authError = error
+            }
+        }
+
+        func updatePassword(username: String, password: String, newPassword: String) {
+            do {
+                let request = try Request(body: ["username": username, "password": password, "new_password": newPassword])
+                parseResponse(try controller.updatePassword(request))
+            } catch {
+                authError = error
+            }
+        }
+
         func parseResponse(_ response: ResponseRepresentable) {
-            guard let token = response as? String else {
+            guard let tokenResponse = response as? String else {
                 return
             }
             do {
-                let payload = try decode(token, algorithm: .hs256(jwtKey), verify: false)
+                token = tokenResponse
+                let payload = try decode(tokenResponse, algorithm: .hs256(jwtKey), verify: false)
                 expiration = payload.expiration
                 id = payload["id"]
                 issuedAt = payload.issuedAt
@@ -123,224 +155,275 @@ final class AuthenticationSpec: QuickSpec {
             }
         }
 
-        describe("login") {
+        beforeEach {
+            controller = AuthController(
+                jwtKey: jwtKey,
+                hash: hasher,
+                issueDate: date,
+                createUser: { (username, salt, secret) in
+                    User(name: username, salt: salt, secret: secret, lastPasswordUpdate: date)
+                },
+                saveUser: { (user) in
+                    try user.save()
+                    userWasSaved = true
+            })
 
-            func logIn(username: String, password: String) {
+            authError = nil
+            expiration = nil
+            id = nil
+            issuedAt = nil
+            lastPasswordUpdate = nil
+            token = nil
+            userWasSaved = false
+
+            Database.default = Database(MemoryDriver())
+        }
+
+        describe("protected endpoints") {
+
+            let nextResponder = TestResponder()
+
+            var middleware: BearerAuthMiddleware!
+            var request: Request!
+            var user: Habit.User!
+
+            func accessProtectedEndpointUsingToken(_ token: String) {
                 do {
-                    let request = try Request(body: ["username": username, "password": password])
-                    parseResponse(try authController.logIn(request))
+                    request = try Request(headers: ["Authorization": "Bearer \(token)"])
+                    _ = try middleware.respond(to: request, chainingTo: nextResponder)
                 } catch {
-                    authError = error
+                    print(error)
                 }
             }
 
-            context("user not found") {
+            func getUser() throws {
+                user = try request.user()
+            }
+
+            beforeEach {
+                middleware = BearerAuthMiddleware(turnstile: .testTurnstile)
+                middleware.jwtKey = jwtKey
+            }
+
+            describe("invalid token") {
 
                 beforeEach {
-                    logIn(username: name, password: password)
+                    accessProtectedEndpointUsingToken("invalid")
                 }
 
-                it("fails") {
-                    expect(authError as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
+                it("does not log in user") {
+                    expect(errorFrom(getUser) as? AuthError) == .notAuthenticated
                 }
             }
 
-            context("incorrect password") {
+            describe("valid user") {
 
                 beforeEach {
-                    createUser()
-                    logIn(username: name, password: "")
+                    register(username: name, password: password)
+                    accessProtectedEndpointUsingToken(token)
+                    try? getUser()
                 }
 
-                it("fails") {
-                    expect(authError as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
-                }
-            }
-
-            context("correct password") {
-
-                beforeEach {
-                    createUser()
-                    logIn(username: name, password: password)
-                }
-
-                it("succeeds") {
-                    expect(authError).to(beNil())
-                }
-
-                describe("token") {
-
-                    it("contains an id") {
-                        expect(id) == "1"
-                    }
-
-                    it("contains an issuedAt date") {
-                        expect(issuedAt) == date
-                    }
-
-                    it("contains an expiration date 10 minutes in the future") {
-                        expect(expiration) == 10.minutes.from(date)
-                    }
-
-                    it("contains a lastPasswordUpdate date") {
-                        expect(lastPasswordUpdate) == date
-                    }
+                it("logs in user") {
+                    expect(user).toNot(beNil())
                 }
             }
         }
 
-        describe("register") {
+        describe("auth endpoints") {
 
-            func register(username: String, password: String) {
-                do {
-                    let request = try Request(body: ["username": username, "password": password])
-                    parseResponse(try authController.register(request))
-                } catch {
-                    authError = error
-                }
-            }
+            describe("login") {
 
-            context("new and valid user") {
-
-                beforeEach {
-                    register(username: name, password: password)
-                }
-
-                it("succeeds") {
-                    expect(authError).to(beNil())
-                }
-
-                it("saves user") {
-                    expect(userWasSaved) == true
-                }
-
-                describe("token") {
-
-                    it("contains an id") {
-                        expect(id) == "1"
-                    }
-
-                    it("contains an issuedAt date") {
-                        expect(issuedAt) == date
-                    }
-
-                    it("contains an expiration date 10 minutes in the future") {
-                        expect(expiration) == 10.minutes.from(date)
-                    }
-
-                    it("contains a lastPasswordUpdate date") {
-                        expect(lastPasswordUpdate) == date
-                    }
-                }
-            }
-
-            context("existing user") {
-
-                beforeEach {
-                    createUser()
-                    register(username: name, password: password)
-                }
-
-                it("fails") {
-                    expect(authError as? Abort) == .custom(status: .badRequest, message: "User exists")
-                }
-
-                it("does not save user") {
-                    expect(userWasSaved) == false
-                }
-            }
-
-            context("invalid username") {
-
-                beforeEach {
-                    register(username: "", password: password)
-                }
-
-                it("fails") {
-                    expect(authError as? ValidationErrorProtocol).toNot(beNil())
-                }
-            }
-
-            context("invalid password") {
-
-                beforeEach {
-                    register(username: name, password: "")
-                }
-
-                it("fails") {
-                    expect(authError as? ValidationErrorProtocol).toNot(beNil())
-                }
-            }
-        }
-
-        describe("update password") {
-
-            func updatePassword(username: String, password: String, newPassword: String) {
-                do {
-                    let request = try Request(body: ["username": username, "password": password, "new_password": newPassword])
-                    parseResponse(try authController.updatePassword(request))
-                } catch {
-                    authError = error
-                }
-            }
-
-            context("same password") {
-
-                beforeEach {
-                    updatePassword(username: name, password: password, newPassword: password)
-                }
-
-                it("fails") {
-                    expect(authError as? Abort) == .custom(status: .badRequest, message: "New password must be different")
-                }
-
-                it("does not save user") {
-                    expect(userWasSaved) == false
-                }
-            }
-
-            context("different password") {
-
-                beforeEach {
-                    createUser()
-                    updatePassword(username: name, password: password, newPassword: "\(password)2")
-                }
-
-                it("succeeds") {
-                    expect(authError).to(beNil())
-                }
-
-                it("saves user") {
-                    expect(userWasSaved) == true
-                }
-
-                describe("token") {
-
-                    it("contains an id") {
-                        expect(id) == "1"
-                    }
-
-                    it("contains an issuedAt date") {
-                        expect(issuedAt) == date
-                    }
-
-                    it("contains an expiration date 10 minutes in the future") {
-                        expect(expiration) == 10.minutes.from(date)
-                    }
-
-                    it("contains a newer lastPasswordUpdate date") {
-                        expect(lastPasswordUpdate) > date
-                    }
-                }
-
-                context("invalid new password") {
+                context("user not found") {
 
                     beforeEach {
-                        updatePassword(username: name, password: password, newPassword: "")
+                        logIn(username: name, password: password)
+                    }
+
+                    it("fails") {
+                        expect(authError as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
+                    }
+                }
+
+                context("incorrect password") {
+
+                    beforeEach {
+                        createUser()
+                        logIn(username: name, password: "")
+                    }
+
+                    it("fails") {
+                        expect(authError as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
+                    }
+                }
+
+                context("correct password") {
+
+                    beforeEach {
+                        createUser()
+                        logIn(username: name, password: password)
+                    }
+
+                    it("succeeds") {
+                        expect(authError).to(beNil())
+                    }
+
+                    describe("token") {
+
+                        it("contains an id") {
+                            expect(id) == "1"
+                        }
+
+                        it("contains an issuedAt date") {
+                            expect(issuedAt) == date
+                        }
+
+                        it("contains an expiration date 10 minutes in the future") {
+                            expect(expiration) == 10.minutes.from(date)
+                        }
+
+                        it("contains a lastPasswordUpdate date") {
+                            expect(lastPasswordUpdate) == date
+                        }
+                    }
+                }
+            }
+
+            describe("register") {
+
+                context("new and valid user") {
+
+                    beforeEach {
+                        register(username: name, password: password)
+                    }
+
+                    it("succeeds") {
+                        expect(authError).to(beNil())
+                    }
+
+                    it("saves user") {
+                        expect(userWasSaved) == true
+                    }
+
+                    describe("token") {
+
+                        it("contains an id") {
+                            expect(id) == "1"
+                        }
+
+                        it("contains an issuedAt date") {
+                            expect(issuedAt) == date
+                        }
+
+                        it("contains an expiration date 10 minutes in the future") {
+                            expect(expiration) == 10.minutes.from(date)
+                        }
+
+                        it("contains a lastPasswordUpdate date") {
+                            expect(lastPasswordUpdate) == date
+                        }
+                    }
+                }
+
+                context("existing user") {
+
+                    beforeEach {
+                        createUser()
+                        register(username: name, password: password)
+                    }
+
+                    it("fails") {
+                        expect(authError as? Abort) == .custom(status: .badRequest, message: "User exists")
+                    }
+
+                    it("does not save user") {
+                        expect(userWasSaved) == false
+                    }
+                }
+
+                context("invalid username") {
+
+                    beforeEach {
+                        register(username: "", password: password)
                     }
 
                     it("fails") {
                         expect(authError as? ValidationErrorProtocol).toNot(beNil())
+                    }
+                }
+
+                context("invalid password") {
+
+                    beforeEach {
+                        register(username: name, password: "")
+                    }
+
+                    it("fails") {
+                        expect(authError as? ValidationErrorProtocol).toNot(beNil())
+                    }
+                }
+            }
+
+            describe("update password") {
+
+                context("same password") {
+
+                    beforeEach {
+                        updatePassword(username: name, password: password, newPassword: password)
+                    }
+
+                    it("fails") {
+                        expect(authError as? Abort) == .custom(status: .badRequest, message: "New password must be different")
+                    }
+                    
+                    it("does not save user") {
+                        expect(userWasSaved) == false
+                    }
+                }
+                
+                context("different password") {
+                    
+                    beforeEach {
+                        createUser()
+                        updatePassword(username: name, password: password, newPassword: "\(password)2")
+                    }
+                    
+                    it("succeeds") {
+                        expect(authError).to(beNil())
+                    }
+                    
+                    it("saves user") {
+                        expect(userWasSaved) == true
+                    }
+                    
+                    describe("token") {
+                        
+                        it("contains an id") {
+                            expect(id) == "1"
+                        }
+                        
+                        it("contains an issuedAt date") {
+                            expect(issuedAt) == date
+                        }
+                        
+                        it("contains an expiration date 10 minutes in the future") {
+                            expect(expiration) == 10.minutes.from(date)
+                        }
+                        
+                        it("contains a newer lastPasswordUpdate date") {
+                            expect(lastPasswordUpdate) > date
+                        }
+                    }
+                    
+                    context("invalid new password") {
+                        
+                        beforeEach {
+                            updatePassword(username: name, password: password, newPassword: "")
+                        }
+                        
+                        it("fails") {
+                            expect(authError as? ValidationErrorProtocol).toNot(beNil())
+                        }
                     }
                 }
             }
