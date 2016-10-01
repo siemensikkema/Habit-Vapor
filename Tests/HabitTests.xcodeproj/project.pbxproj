@@ -17,6 +17,8 @@
 		5FC42CB41D9D8A1F00A3130E /* Nimble.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FC42CB01D9D89FC00A3130E /* Nimble.framework */; };
 		5FC42CB51D9D8A1F00A3130E /* Quick.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FC42CB11D9D89FC00A3130E /* Quick.framework */; };
 		5FC42CBA1D9D8C6000A3130E /* Abort+Equatable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FC42CB91D9D8C6000A3130E /* Abort+Equatable.swift */; };
+		5FF15E221D9FDE750025138C /* TestHasher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF15E211D9FDE750025138C /* TestHasher.swift */; };
+		5FF15E501D9FDEA90025138C /* CatchError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FF15E4F1D9FDEA90025138C /* CatchError.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -369,6 +371,8 @@
 		5FC42CB01D9D89FC00A3130E /* Nimble.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Nimble.framework; path = Carthage/Build/Mac/Nimble.framework; sourceTree = "<group>"; };
 		5FC42CB11D9D89FC00A3130E /* Quick.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Quick.framework; path = Carthage/Build/Mac/Quick.framework; sourceTree = "<group>"; };
 		5FC42CB91D9D8C6000A3130E /* Abort+Equatable.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Abort+Equatable.swift"; sourceTree = "<group>"; };
+		5FF15E211D9FDE750025138C /* TestHasher.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TestHasher.swift; sourceTree = "<group>"; };
+		5FF15E4F1D9FDEA90025138C /* CatchError.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CatchError.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -415,7 +419,9 @@
 			isa = PBXGroup;
 			children = (
 				5FC42CB91D9D8C6000A3130E /* Abort+Equatable.swift */,
+				5FF15E4F1D9FDEA90025138C /* CatchError.swift */,
 				5F81C6621D9FCA940012F3E0 /* Request.swift */,
+				5FF15E211D9FDE750025138C /* TestHasher.swift */,
 				5F81C6641D9FD2E80012F3E0 /* TestResponder.swift */,
 				5F81C6661D9FD3080012F3E0 /* Turnstile.swift */,
 				5F81C65D1D9FC5450012F3E0 /* Specs */,
@@ -878,12 +884,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				5FF15E501D9FDEA90025138C /* CatchError.swift in Sources */,
 				5F81C6651D9FD2E80012F3E0 /* TestResponder.swift in Sources */,
 				5FC42CBA1D9D8C6000A3130E /* Abort+Equatable.swift in Sources */,
 				5F81C6671D9FD3080012F3E0 /* Turnstile.swift in Sources */,
 				5F81C6631D9FCA940012F3E0 /* Request.swift in Sources */,
 				5F81C6611D9FC5450012F3E0 /* User endpoints.swift in Sources */,
 				5F81C6601D9FC5450012F3E0 /* Authentication.swift in Sources */,
+				5FF15E221D9FDE750025138C /* TestHasher.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

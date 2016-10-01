@@ -49,6 +49,11 @@ struct AuthenticatedUserCredentials: Credentials {
     let id: String
     let lastPasswordUpdate: Date
 
+    init(id: String, lastPasswordUpdate: Date) {
+        self.id = id
+        self.lastPasswordUpdate = lastPasswordUpdate
+    }
+
     init?(payload: Payload) {
         guard
             let id: String = payload[User.Constants.id],
