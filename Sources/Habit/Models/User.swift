@@ -4,6 +4,15 @@ import HTTP
 import JWT
 import Vapor
 
+struct Email: ValidationSuite, Validatable {
+
+    let value: String
+
+    public static func validate(input value: Email) throws {
+        try Vapor.Email.validate(input: value.value)
+    }
+}
+
 struct Name: ValidationSuite, Validatable {
 
     let value: String
@@ -23,6 +32,7 @@ public final class User: Model {
     typealias Salt = String
 
     struct Constants {
+        static let email = "email"
         static let id = "id"
         static let name = "name"
         static let lastPasswordUpdate = "last_password_update"
@@ -33,16 +43,18 @@ public final class User: Model {
     public var exists = false
     public var id: Node?
 
+    var email: Email
     var name: Name
     fileprivate var secret: Secret
     fileprivate var salt: Salt
     fileprivate var lastPasswordUpdate: Date
 
-    convenience init(name: Valid<Name>, salt: Salt, secret: Secret) {
-        self.init(name: name, salt: salt, secret: secret, lastPasswordUpdate: Date())
+    convenience init(email: Valid<Email>, name: Valid<Name>, salt: Salt, secret: Secret) {
+        self.init(email: email, name: name, salt: salt, secret: secret, lastPasswordUpdate: Date())
     }
 
-    init(name: Valid<Name>, salt: Salt, secret: Secret, lastPasswordUpdate: Date) {
+    init(email: Valid<Email>, name: Valid<Name>, salt: Salt, secret: Secret, lastPasswordUpdate: Date) {
+        self.email = email.value
         self.lastPasswordUpdate = lastPasswordUpdate
         self.name = name.value
         self.salt = salt
@@ -51,6 +63,7 @@ public final class User: Model {
 
     // NodeInitializable
     public init(node: Node, in context: Context) throws {
+        email = Email(value: try node.extract(Constants.email))
         id = try node.extract(Constants.id)
         name = Name(value: try node.extract(Constants.name))
         lastPasswordUpdate = try node.extract(Constants.lastPasswordUpdate,
@@ -68,7 +81,10 @@ public final class User: Model {
 extension User {
 
     public func makeResponse() throws -> Response {
-        return try JSON([Constants.name: .string(name.value)]).makeResponse()
+        return try JSON([
+            Constants.name: .string(name.value),
+            Constants.email: .string(email.value)])
+            .makeResponse()
     }
 }
 
@@ -77,6 +93,7 @@ extension User {
 
     public func makeNode(context: Context) throws -> Node {
         return try Node(node: [
+            Constants.email: email.value,
             Constants.id: id,
             Constants.name: name.value,
             Constants.lastPasswordUpdate: lastPasswordUpdate.timeIntervalSince1970,
@@ -93,6 +110,7 @@ extension User {
         try database.create(entity) { users in
             users.id()
             users.double(Constants.lastPasswordUpdate)
+            users.string(Constants.email)
             users.string(Constants.name)
             users.string(Constants.salt)
             users.string(Constants.secret)

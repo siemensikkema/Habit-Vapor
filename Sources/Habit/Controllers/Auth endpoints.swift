@@ -8,7 +8,7 @@ import Vapor
 
 public final class AuthController {
 
-    typealias CreateUser = (Valid<Name>, User.Salt, User.Secret) -> User
+    typealias CreateUser = (Valid<Email>, Valid<Name>, User.Salt, User.Secret) -> User
     typealias SaveUser = (inout User) throws -> Void
 
     private let hash: HashProtocol
@@ -20,7 +20,7 @@ public final class AuthController {
     public convenience init(jwtKey: Data, hash: HashProtocol) {
         self.init(jwtKey: jwtKey,
                   hash: hash,
-                  createUser: User.init(name:salt:secret:),
+                  createUser: User.init(email:name:salt:secret:),
                   saveUser: { try $0.save() })
     }
 
@@ -38,19 +38,21 @@ public final class AuthController {
     }
 
     private func extractValues(_ data: Content) throws ->
-        (username: Name, password: Password, newPassword: Password?) {
-        guard
-            let username = data["username"]?.string.map(Name.init),
-            let password = data["password"]?.string.map(Password.init) else {
-                throw Abort.badRequest
+        (email: Email?, name: Name, password: Password, newPassword: Password?) {
+        guard let username = data["name"]?.string.map(Name.init) else {
+            throw Abort.custom(status: .badRequest, message: "Name is missing")
         }
+        guard let password = data["password"]?.string.map(Password.init) else {
+            throw Abort.custom(status: .badRequest, message: "Password is missing")
+        }
+        let email = data["email"]?.string.map(Email.init)
         let newPassword = data["new_password"]?.string.map(Password.init)
-        return (username, password, newPassword)
+        return (email, username, password, newPassword)
     }
 
     public func logIn(_ request: Request) throws -> ResponseRepresentable {
         let values = try extractValues(request.data)
-        let credentials = UserCredentials(username: values.username,
+        let credentials = UserCredentials(username: values.name,
                                           password: values.password,
                                           hash: hash)
         try request.auth.login(credentials, persist: false)
@@ -61,19 +63,22 @@ public final class AuthController {
 
     public func register(_ request: Request) throws -> ResponseRepresentable {
         let values = try extractValues(request.data)
-        let validUsername: Valid<Name> = try values.username.validated()
-        let validPassword: Valid<Password> = try values.password.validated()
+        guard let email: Valid<Email> = try values.email?.validated() else {
+            throw Abort.custom(status: .badRequest, message: "Email is missing")
+        }
+        let name: Valid<Name> = try values.name.validated()
+        let password: Valid<Password> = try values.password.validated()
 
-        guard let userExists = try? User.findByName(validUsername.value) != nil,
+        guard let userExists = try? User.findByName(name.value) != nil,
             userExists == false else {
                 throw Abort.custom(status: .badRequest, message: "User exists")
         }
 
-        let credentials = UserCredentials(username: validUsername.value,
-                                          password: validPassword.value,
+        let credentials = UserCredentials(username: name.value,
+                                          password: password.value,
                                           hash: hash)
         let hashedPassword = try credentials.hashPassword()
-        var user = createUser(validUsername, hashedPassword.salt, hashedPassword.secret)
+        var user = createUser(email, name, hashedPassword.salt, hashedPassword.secret)
         try saveUser(&user)
 
         return try token(user: user)
@@ -88,7 +93,7 @@ public final class AuthController {
         guard newPassword.value != values.password else {
             throw Abort.custom(status: .badRequest, message: "New password must be different")
         }
-        let credentials = UserCredentials(username: values.username,
+        let credentials = UserCredentials(username: values.name,
                                           password: values.password,
                                           hash: hash)
         try request.auth.login(credentials, persist: false)

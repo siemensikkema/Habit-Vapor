@@ -12,13 +12,16 @@ import Vapor
 
 extension Habit.User {
 
+    static let testEmail = "elon@spacex.com"
     static let testPassword = "g0t0m@rs"
     static let testName = "ElonMusk"
 
     static func testUser(name: String = testName,
+                         email: String = testEmail,
                          password: String = testPassword,
                          date: Date = Date()) -> Habit.User {
-        return Habit.User(name: try! Name(value: testName).validated(),
+        return Habit.User(email: try! Email(value: testEmail).validated(),
+                          name: try! Name(value: testName).validated(),
                           salt: "",
                           secret: testPassword.bytes.hexString,
                           lastPasswordUpdate: date)
@@ -45,37 +48,10 @@ final class AuthenticationSpec: QuickSpec {
 
         func createUser() {
             do {
-                var user = Habit.User.testUser(date: date)
+                var user = User.testUser(date: date)
                 try user.save()
             } catch {
                 print(error)
-            }
-        }
-
-        func logIn(username: String, password: String) {
-            do {
-                let request = try Request(body: ["username": username, "password": password])
-                parseResponse(try controller.logIn(request))
-            } catch let e {
-                error = e
-            }
-        }
-
-        func register(username: String, password: String) {
-            do {
-                let request = try Request(body: ["username": username, "password": password])
-                parseResponse(try controller.register(request))
-            } catch let e {
-                error = e
-            }
-        }
-
-        func updatePassword(username: String, password: String, newPassword: String) {
-            do {
-                let request = try Request(body: ["username": username, "password": password, "new_password": newPassword])
-                parseResponse(try controller.updatePassword(request))
-            } catch let e {
-                error = e
             }
         }
 
@@ -95,13 +71,43 @@ final class AuthenticationSpec: QuickSpec {
             }
         }
 
+        func performAction(_ action: (Request) throws -> ResponseRepresentable,
+                           with parameters: [String: String]) {
+            do {
+                let request = try Request(body: parameters)
+                parseResponse(try action(request))
+            } catch let e {
+                error = e
+            }
+        }
+
+        func logInUserWithName(_ name: String, password: String) {
+            performAction(controller.logIn, with: ["name": name, "password": password])
+        }
+
+        func registerUserWithEmail(_ email: String, name: String, password: String) {
+            performAction(controller.register,
+                          with: ["email": email, "name": name, "password": password])
+        }
+
+        func updatePassword(_ password: String,
+                            to newPassword: String,
+                            forUserWithName name: String) {
+            performAction(controller.updatePassword,
+                          with: ["name": name, "password": password, "new_password": newPassword])
+        }
+
         beforeEach {
             controller = AuthController(
                 jwtKey: jwtKey,
                 hash: hasher,
                 issueDate: date,
-                createUser: { (username, salt, secret) in
-                    User(name: username, salt: salt, secret: secret, lastPasswordUpdate: date)
+                createUser: { (email, name, salt, secret) in
+                    User(email: email,
+                         name: name,
+                         salt: salt,
+                         secret: secret,
+                         lastPasswordUpdate: date)
                 },
                 saveUser: { (user) in
                     try user.save()
@@ -159,7 +165,9 @@ final class AuthenticationSpec: QuickSpec {
             describe("valid user") {
 
                 beforeEach {
-                    register(username: Habit.User.testName, password: Habit.User.testPassword)
+                    registerUserWithEmail(User.testEmail,
+                                          name: User.testName,
+                                          password: User.testPassword)
                     accessProtectedEndpointUsingToken(token)
                     try? getUser()
                 }
@@ -177,11 +185,13 @@ final class AuthenticationSpec: QuickSpec {
                 context("user not found") {
 
                     beforeEach {
-                        logIn(username: Habit.User.testName, password: Habit.User.testPassword)
+                        logInUserWithName(User.testName, password: User.testPassword)
                     }
 
                     it("fails") {
-                        expect(error as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
+                        expect(error as? Abort) == .custom(
+                            status: .badRequest,
+                            message: "User not found or incorrect password")
                     }
                 }
 
@@ -189,11 +199,13 @@ final class AuthenticationSpec: QuickSpec {
 
                     beforeEach {
                         createUser()
-                        logIn(username: Habit.User.testName, password: "")
+                        logInUserWithName(User.testName, password: "")
                     }
 
                     it("fails") {
-                        expect(error as? Abort) == .custom(status: .badRequest, message: "User not found or incorrect password")
+                        expect(error as? Abort) == .custom(
+                            status: .badRequest,
+                            message: "User not found or incorrect password")
                     }
                 }
 
@@ -201,7 +213,7 @@ final class AuthenticationSpec: QuickSpec {
 
                     beforeEach {
                         createUser()
-                        logIn(username: Habit.User.testName, password: Habit.User.testPassword)
+                        logInUserWithName(User.testName, password: User.testPassword)
                     }
 
                     it("succeeds") {
@@ -234,7 +246,9 @@ final class AuthenticationSpec: QuickSpec {
                 context("new and valid user") {
 
                     beforeEach {
-                        register(username: Habit.User.testName, password: Habit.User.testPassword)
+                        registerUserWithEmail(User.testEmail,
+                                              name: User.testName,
+                                              password: User.testPassword)
                     }
 
                     it("succeeds") {
@@ -269,11 +283,14 @@ final class AuthenticationSpec: QuickSpec {
 
                     beforeEach {
                         createUser()
-                        register(username: Habit.User.testName, password: Habit.User.testPassword)
+                        registerUserWithEmail(User.testEmail,
+                                              name: User.testName,
+                                              password: User.testPassword)
                     }
 
                     it("fails") {
-                        expect(error as? Abort) == .custom(status: .badRequest, message: "User exists")
+                        expect(error as? Abort) == .custom(status: .badRequest,
+                                                           message: "User exists")
                     }
 
                     it("does not save user") {
@@ -281,10 +298,48 @@ final class AuthenticationSpec: QuickSpec {
                     }
                 }
 
-                context("invalid username") {
+                context("missing email") {
 
                     beforeEach {
-                        register(username: "", password: Habit.User.testPassword)
+                        performAction(
+                            controller.register,
+                            with: ["name": User.testName, "password": User.testPassword])
+                    }
+
+                    it("fails") {
+                        expect(error as? Abort) == .custom(status: .badRequest,
+                                                           message: "Email is missing")
+                    }
+                }
+
+                context("invalid email") {
+
+                    beforeEach {
+                        registerUserWithEmail("", name: User.testName, password: User.testEmail)
+                    }
+
+                    it("fails") {
+                        expect(error as? ValidationErrorProtocol).toNot(beNil())
+                    }
+                }
+
+                context("missing name") {
+                    beforeEach {
+                        performAction(
+                            controller.register,
+                            with: ["email": User.testName, "password": User.testPassword])
+                    }
+
+                    it("fails") {
+                        expect(error as? Abort) == .custom(status: .badRequest,
+                                                           message: "Name is missing")
+                    }
+                }
+
+                context("invalid name") {
+
+                    beforeEach {
+                        registerUserWithEmail(User.testEmail, name: "", password: User.testPassword)
                     }
 
                     it("fails") {
@@ -295,11 +350,24 @@ final class AuthenticationSpec: QuickSpec {
                 context("invalid password") {
 
                     beforeEach {
-                        register(username: Habit.User.testName, password: "")
+                        registerUserWithEmail(User.testEmail, name: User.testName, password: "")
                     }
 
                     it("fails") {
                         expect(error as? ValidationErrorProtocol).toNot(beNil())
+                    }
+                }
+
+                context("missing password") {
+                    beforeEach {
+                        performAction(
+                            controller.register,
+                            with: ["email": User.testName, "name": User.testName])
+                    }
+
+                    it("fails") {
+                        expect(error as? Abort) == .custom(status: .badRequest,
+                                                           message: "Password is missing")
                     }
                 }
             }
@@ -309,11 +377,15 @@ final class AuthenticationSpec: QuickSpec {
                 context("same password") {
 
                     beforeEach {
-                        updatePassword(username: Habit.User.testName, password: Habit.User.testPassword, newPassword: Habit.User.testPassword)
+                        updatePassword(User.testPassword,
+                                       to: User.testPassword,
+                                       forUserWithName: User.testName)
                     }
 
                     it("fails") {
-                        expect(error as? Abort) == .custom(status: .badRequest, message: "New password must be different")
+                        expect(error as? Abort) == .custom(
+                            status: .badRequest,
+                            message: "New password must be different")
                     }
                     
                     it("does not save user") {
@@ -325,7 +397,9 @@ final class AuthenticationSpec: QuickSpec {
                     
                     beforeEach {
                         createUser()
-                        updatePassword(username: Habit.User.testName, password: Habit.User.testPassword, newPassword: "\(Habit.User.testPassword)2")
+                        updatePassword(User.testPassword,
+                                       to: "\(User.testPassword)2",
+                                       forUserWithName: User.testName)
                     }
                     
                     it("succeeds") {
@@ -358,7 +432,9 @@ final class AuthenticationSpec: QuickSpec {
                     context("invalid new password") {
                         
                         beforeEach {
-                            updatePassword(username: Habit.User.testName, password: Habit.User.testPassword, newPassword: "")
+                            updatePassword(User.testPassword,
+                                           to: "",
+                                           forUserWithName: User.testName)
                         }
                         
                         it("fails") {

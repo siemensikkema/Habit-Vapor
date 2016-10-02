@@ -37,7 +37,9 @@ final class UserEndpointsSpec: QuickSpec {
                         }
                     }
 
-                    response = try (try userController.me(request) as? Habit.User)?.makeResponse().json
+                    response = try (try userController.me(request) as? Habit.User)?
+                        .makeResponse()
+                        .json
                 } catch let e {
                     error = e
                 }
@@ -62,8 +64,10 @@ final class UserEndpointsSpec: QuickSpec {
                         performMeRequest(with: .testUser())
                     }
 
-                    it("only contains a name") {
-                        expect(response) == JSON(["name": .string(User.testName)])
+                    it("contains name and email") {
+                        expect(response) == JSON([
+                            "email": .string(User.testEmail),
+                            "name": .string(User.testName)])
                     }
                 }
             }
