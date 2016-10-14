@@ -1,11 +1,9 @@
 import Auth
 import Foundation
 import HTTP
-import JWT
 import Vapor
 
 struct Email: ValidationSuite, Validatable {
-
     let value: String
 
     public static func validate(input value: Email) throws {
@@ -14,7 +12,6 @@ struct Email: ValidationSuite, Validatable {
 }
 
 struct Name: ValidationSuite, Validatable {
-
     let value: String
 
     public static func validate(input value: Name) throws {
@@ -27,7 +24,6 @@ struct Name: ValidationSuite, Validatable {
 }
 
 public final class User: Model {
-    
     typealias Secret = String
     typealias Salt = String
 
@@ -79,7 +75,6 @@ public final class User: Model {
 
 // ResponseRepresentable
 extension User {
-
     public func makeResponse() throws -> Response {
         return try JSON([
             Constants.name: .string(name.value),
@@ -90,7 +85,6 @@ extension User {
 
 // NodeRepresentable
 extension User {
-
     public func makeNode(context: Context) throws -> Node {
         return try Node(node: [
             Constants.email: email.value,
@@ -105,7 +99,6 @@ extension User {
 
 // Preparation
 extension User {
-
     public static func prepare(_ database: Database) throws {
         try database.create(entity) { users in
             users.id()
@@ -123,7 +116,6 @@ extension User {
 }
 
 extension User: Auth.User {
-
     public static func authenticate(credentials: Credentials) throws -> Auth.User {
         let authenticatedUser: User
 
@@ -160,23 +152,28 @@ extension User: Auth.User {
 }
 
 extension User {
-
     func update(salt: Salt, secret: Secret) {
         lastPasswordUpdate = Date()
         self.salt = salt
         self.secret = secret
     }
+}
 
-    var payload: Payload {
-        var payload = Payload()
-        payload[Constants.id] = id?.string
-        payload[Constants.lastPasswordUpdate] = lastPasswordUpdate
-        return payload
+import VaporJWT
+
+extension User: Storable {
+    public var node: Node {
+        guard let idString = id?.string else {
+            return [:]
+        }
+
+        return [
+            Constants.id: .string(idString),
+            Constants.lastPasswordUpdate: .number(.double(lastPasswordUpdate.timeIntervalSince1970))]
     }
 }
 
 extension Request {
-    
     func user() throws -> User {
         guard let user = try auth.user() as? User else {
             throw Abort.custom(status: .badRequest, message: "Invalid user type.")

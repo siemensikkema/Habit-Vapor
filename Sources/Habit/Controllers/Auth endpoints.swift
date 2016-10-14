@@ -1,10 +1,11 @@
 import Auth
+import Core
 import Foundation
 import HTTP
-import JWT
 import Punctual
 import TurnstileCrypto
 import Vapor
+import VaporJWT
 
 public final class AuthController {
 
@@ -12,19 +13,19 @@ public final class AuthController {
     typealias SaveUser = (inout User) throws -> Void
 
     private let hash: HashProtocol
-    private let jwtKey: Data
+    private let jwtKey: Bytes
     private let createUser: CreateUser
     private let saveUser: SaveUser
     private let issueDate: Date? // used for testing
 
-    public convenience init(jwtKey: Data, hash: HashProtocol) {
+    public convenience init(jwtKey: Bytes, hash: HashProtocol) {
         self.init(jwtKey: jwtKey,
                   hash: hash,
                   createUser: User.init(email:name:salt:secret:),
                   saveUser: { try $0.save() })
     }
 
-    init(jwtKey: Data,
+    init(jwtKey: Bytes,
          hash: HashProtocol,
          issueDate: Date? = nil,
          createUser: @escaping CreateUser,
@@ -107,16 +108,16 @@ public final class AuthController {
     }
 
     private func token(user: User) throws -> String {
-        do {
-            var payload = user.payload
-            let now = self.issueDate ?? Date()
-            payload.expiration = 10.minutes.from(now)
-            payload.issuedAt = now
-            return try encode(payload, algorithm: .hs256(jwtKey))
-        } catch {
-            print(error.localizedDescription)
+        let now = Date()
+
+        guard let expirationDate = 10.minutes.from(now) else {
             throw Abort.serverError
         }
+
+        let jwt = try JWT(payload: [ExpirationTimeClaim(expirationDate), user],
+                          signer: HS256(key: jwtKey))
+
+        return try jwt.createToken()
     }
 }
 

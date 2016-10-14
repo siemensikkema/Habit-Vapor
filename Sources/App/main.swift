@@ -3,14 +3,14 @@ import Habit
 import Vapor
 import VaporMySQL
 
-private let jwtAuthentication = JWTAuthentication(user: User.self)
-private let drop = Droplet(
-    availableMiddleware: ["auth": jwtAuthentication],
-    preparations: [User.self],
-    providers: [VaporMySQL.Provider.self])
+private let drop = Droplet()
+private let jwtKey = try drop.config.data(for: AppKey.jwt)!.makeBytes()
+private let jwtAuthentication = JWTAuthentication(user: User.self, jwtKey: jwtKey)
 
-private let jwtKey = drop.config.data(for: AppKey.jwt)!
-jwtAuthentication.jwtKey = jwtKey
+try drop.addProvider(VaporMySQL.Provider.self)
+
+drop.middleware.append(jwtAuthentication)
+drop.preparations.append(User.self)
 
 // '/auth'
 private let authController = AuthController(jwtKey: jwtKey, hash: drop.hash)
