@@ -4,14 +4,13 @@ import Essentials
 import Fluent
 import Foundation
 import HTTP
-import JWT
+import VaporJWT
 import Nimble
 import Punctual
 import Quick
 import Vapor
 
 extension Habit.User {
-
     static let testEmail = "elon@spacex.com"
     static let testPassword = "g0t0m@rs"
     static let testName = "ElonMusk"
@@ -29,22 +28,28 @@ extension Habit.User {
 }
 
 final class AuthenticationSpec: QuickSpec {
-
     override func spec() {
-
+        
         // initializing date this way enables comparison
         let date = Date(timeIntervalSince1970: Date().timeIntervalSince1970)
         let hasher = TestHasher()
-        let jwtKey = "secret".data(using: .utf8)!
+        let jwtKey = "secret".bytes
 
         var error: Error?
         var controller: AuthController!
-        var expiration: Date?
-        var id: String?
-        var issuedAt: Date?
-        var lastPasswordUpdate: Date?
+        var jwt: JWT!
         var token: String!
-        var userWasSaved: Bool!
+
+        var userWasSaved = false
+
+        func createPayload(passwordUpdate: Date? = nil) -> Node {
+            return [
+                "exp": Node(Int(10.minutes.from(date)!.timeIntervalSince1970)),
+                "user": Node([
+                    "id": Node(1),
+                    "last_password_update":
+                        Node(Int((passwordUpdate ?? date).timeIntervalSince1970))])]
+        }
 
         func createUser() {
             do {
@@ -56,16 +61,12 @@ final class AuthenticationSpec: QuickSpec {
         }
 
         func parseResponse(_ response: ResponseRepresentable) {
-            guard let tokenResponse = response as? String else {
+            guard let responseToken = response as? String else {
                 return
             }
             do {
-                token = tokenResponse
-                let payload = try decode(tokenResponse, algorithm: .hs256(jwtKey), verify: false)
-                expiration = payload.expiration
-                id = payload["id"]
-                issuedAt = payload.issuedAt
-                lastPasswordUpdate = payload["last_password_update"]
+                token = responseToken
+                jwt = try JWT(token: token)
             } catch {
                 print(error)
             }
@@ -102,6 +103,7 @@ final class AuthenticationSpec: QuickSpec {
                 jwtKey: jwtKey,
                 hash: hasher,
                 issueDate: date,
+                passwordUpdate: date + 1,
                 createUser: { (email, name, salt, secret) in
                     User(email: email,
                          name: name,
@@ -113,20 +115,17 @@ final class AuthenticationSpec: QuickSpec {
                     try user.save()
                     userWasSaved = true
             })
-
-            error = nil
-            expiration = nil
-            id = nil
-            issuedAt = nil
-            lastPasswordUpdate = nil
-            token = nil
-            userWasSaved = false
-
             Database.default = Database(MemoryDriver())
         }
 
-        describe("protected endpoints") {
+        afterEach {
+            error = nil
+            jwt = nil
+            token = nil
+            userWasSaved = false
+        }
 
+        describe("protected endpoints") {
             let nextResponder = TestResponder()
 
             var middleware: JWTAuthentication!
@@ -147,12 +146,10 @@ final class AuthenticationSpec: QuickSpec {
             }
 
             beforeEach {
-                middleware = JWTAuthentication(turnstile: .testTurnstile)
-                middleware.jwtKey = jwtKey
+                middleware = JWTAuthentication(jwtKey: jwtKey, turnstile: .testTurnstile)
             }
 
             describe("invalid token") {
-
                 beforeEach {
                     accessProtectedEndpointUsingToken("invalid")
                 }
@@ -162,14 +159,18 @@ final class AuthenticationSpec: QuickSpec {
                 }
             }
 
-            describe("valid user") {
-
+            fdescribe("valid user") {
                 beforeEach {
                     registerUserWithEmail(User.testEmail,
                                           name: User.testName,
                                           password: User.testPassword)
                     accessProtectedEndpointUsingToken(token)
-                    try? getUser()
+
+                    do {
+                        try getUser()
+                    } catch {
+                        print(error)
+                    }
                 }
 
                 it("logs in user") {
@@ -179,11 +180,8 @@ final class AuthenticationSpec: QuickSpec {
         }
 
         describe("auth endpoints") {
-
             describe("login") {
-
                 context("user not found") {
-
                     beforeEach {
                         logInUserWithName(User.testName, password: User.testPassword)
                     }
@@ -196,7 +194,6 @@ final class AuthenticationSpec: QuickSpec {
                 }
 
                 context("incorrect password") {
-
                     beforeEach {
                         createUser()
                         logInUserWithName(User.testName, password: "")
@@ -210,7 +207,6 @@ final class AuthenticationSpec: QuickSpec {
                 }
 
                 context("correct password") {
-
                     beforeEach {
                         createUser()
                         logInUserWithName(User.testName, password: User.testPassword)
@@ -221,30 +217,19 @@ final class AuthenticationSpec: QuickSpec {
                     }
 
                     describe("token") {
-
-                        it("contains an id") {
-                            expect(id) == "1"
+                        it("contains expected payload") {
+                            expect(jwt.payload) == createPayload()
                         }
 
-                        it("contains an issuedAt date") {
-                            expect(issuedAt) == date
-                        }
-
-                        it("contains an expiration date 10 minutes in the future") {
-                            expect(expiration) == 10.minutes.from(date)
-                        }
-
-                        it("contains a lastPasswordUpdate date") {
-                            expect(lastPasswordUpdate) == date
+                        it ("has correct signature") {
+                            expect(try? jwt.verifySignatureWith(HS256(key: jwtKey))) == true
                         }
                     }
                 }
             }
 
             describe("register") {
-
                 context("new and valid user") {
-
                     beforeEach {
                         registerUserWithEmail(User.testEmail,
                                               name: User.testName,
@@ -260,27 +245,17 @@ final class AuthenticationSpec: QuickSpec {
                     }
 
                     describe("token") {
-
-                        it("contains an id") {
-                            expect(id) == "1"
+                        it("contains expected payload") {
+                            expect(jwt.payload) == createPayload()
                         }
 
-                        it("contains an issuedAt date") {
-                            expect(issuedAt) == date
-                        }
-
-                        it("contains an expiration date 10 minutes in the future") {
-                            expect(expiration) == 10.minutes.from(date)
-                        }
-
-                        it("contains a lastPasswordUpdate date") {
-                            expect(lastPasswordUpdate) == date
+                        it ("has correct signature") {
+                            expect(try? jwt.verifySignatureWith(HS256(key: jwtKey))) == true
                         }
                     }
                 }
 
                 context("existing user") {
-
                     beforeEach {
                         createUser()
                         registerUserWithEmail(User.testEmail,
@@ -299,7 +274,6 @@ final class AuthenticationSpec: QuickSpec {
                 }
 
                 context("missing email") {
-
                     beforeEach {
                         performAction(
                             controller.register,
@@ -313,7 +287,6 @@ final class AuthenticationSpec: QuickSpec {
                 }
 
                 context("invalid email") {
-
                     beforeEach {
                         registerUserWithEmail("", name: User.testName, password: User.testEmail)
                     }
@@ -337,7 +310,6 @@ final class AuthenticationSpec: QuickSpec {
                 }
 
                 context("invalid name") {
-
                     beforeEach {
                         registerUserWithEmail(User.testEmail, name: "", password: User.testPassword)
                     }
@@ -348,7 +320,6 @@ final class AuthenticationSpec: QuickSpec {
                 }
 
                 context("invalid password") {
-
                     beforeEach {
                         registerUserWithEmail(User.testEmail, name: User.testName, password: "")
                     }
@@ -373,9 +344,7 @@ final class AuthenticationSpec: QuickSpec {
             }
 
             describe("update password") {
-
                 context("same password") {
-
                     beforeEach {
                         updatePassword(User.testPassword,
                                        to: User.testPassword,
@@ -394,7 +363,6 @@ final class AuthenticationSpec: QuickSpec {
                 }
                 
                 context("different password") {
-                    
                     beforeEach {
                         createUser()
                         updatePassword(User.testPassword,
@@ -411,26 +379,16 @@ final class AuthenticationSpec: QuickSpec {
                     }
                     
                     describe("token") {
-                        
-                        it("contains an id") {
-                            expect(id) == "1"
+                        it("contains expected payload") {
+                            expect(jwt.payload) == createPayload(passwordUpdate: date + 1)
                         }
-                        
-                        it("contains an issuedAt date") {
-                            expect(issuedAt) == date
-                        }
-                        
-                        it("contains an expiration date 10 minutes in the future") {
-                            expect(expiration) == 10.minutes.from(date)
-                        }
-                        
-                        it("contains a newer lastPasswordUpdate date") {
-                            expect(lastPasswordUpdate) > date
+
+                        it ("has correct signature") {
+                            expect(try? jwt.verifySignatureWith(HS256(key: jwtKey))) == true
                         }
                     }
-                    
+
                     context("invalid new password") {
-                        
                         beforeEach {
                             updatePassword(User.testPassword,
                                            to: "",

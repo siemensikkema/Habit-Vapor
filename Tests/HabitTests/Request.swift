@@ -4,7 +4,6 @@ import Node
 import Turnstile
 
 extension Request {
-
     convenience init(body: [String: String]) throws {
         try self.init(body: JSON(Node(dictionary: body)))
     }
@@ -24,7 +23,6 @@ extension Request {
 }
 
 extension Node {
-
     init(dictionary: [String: String]) {
         var converted: [String: Node] = [:]
 

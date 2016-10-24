@@ -2,6 +2,7 @@ import Auth
 import Foundation
 import HTTP
 import Vapor
+import VaporJWT
 
 struct Email: ValidationSuite, Validatable {
     let value: String
@@ -49,7 +50,11 @@ public final class User: Model {
         self.init(email: email, name: name, salt: salt, secret: secret, lastPasswordUpdate: Date())
     }
 
-    init(email: Valid<Email>, name: Valid<Name>, salt: Salt, secret: Secret, lastPasswordUpdate: Date) {
+    init(email: Valid<Email>,
+         name: Valid<Name>,
+         salt: Salt,
+         secret: Secret,
+         lastPasswordUpdate: Date) {
         self.email = email.value
         self.lastPasswordUpdate = lastPasswordUpdate
         self.name = name.value
@@ -124,8 +129,10 @@ extension User: Auth.User {
             guard let user = try User.find(credentials.id) else {
                 throw Abort.custom(status: .badRequest, message: "User not found")
             }
-            guard user.lastPasswordUpdate <= credentials.lastPasswordUpdate else {
-                throw Abort.custom(status: .forbidden, message: "Incorrect password")
+            guard
+                Int(user.lastPasswordUpdate.timeIntervalSince1970) <=
+                Int(credentials.lastPasswordUpdate.timeIntervalSince1970) else {
+                    throw Abort.custom(status: .forbidden, message: "Incorrect password")
             }
             authenticatedUser = user
 
@@ -152,24 +159,17 @@ extension User: Auth.User {
 }
 
 extension User {
-    func update(salt: Salt, secret: Secret) {
-        lastPasswordUpdate = Date()
+    func update(salt: Salt, secret: Secret, now: Date) {
+        lastPasswordUpdate = now
         self.salt = salt
         self.secret = secret
     }
 }
 
-import VaporJWT
-
 extension User: Storable {
     public var node: Node {
-        guard let idString = id?.string else {
-            return [:]
-        }
-
-        return [
-            Constants.id: .string(idString),
-            Constants.lastPasswordUpdate: .number(.double(lastPasswordUpdate.timeIntervalSince1970))]
+        return [Constants.id: Node(id?.int ?? -1),
+                Constants.lastPasswordUpdate: Node(Int(lastPasswordUpdate.timeIntervalSince1970))]
     }
 }
 

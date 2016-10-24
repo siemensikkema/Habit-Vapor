@@ -8,7 +8,6 @@ import Vapor
 import VaporJWT
 
 public final class AuthController {
-
     typealias CreateUser = (Valid<Email>, Valid<Name>, User.Salt, User.Secret) -> User
     typealias SaveUser = (inout User) throws -> Void
 
@@ -16,7 +15,10 @@ public final class AuthController {
     private let jwtKey: Bytes
     private let createUser: CreateUser
     private let saveUser: SaveUser
-    private let issueDate: Date? // used for testing
+
+    // used for testing
+    private let issueDate: Date?
+    private let passwordUpdate: Date?
 
     public convenience init(jwtKey: Bytes, hash: HashProtocol) {
         self.init(jwtKey: jwtKey,
@@ -28,11 +30,14 @@ public final class AuthController {
     init(jwtKey: Bytes,
          hash: HashProtocol,
          issueDate: Date? = nil,
+         passwordUpdate: Date? = nil,
          createUser: @escaping CreateUser,
          saveUser: @escaping SaveUser) {
         self.hash = hash
         self.jwtKey = jwtKey
+
         self.issueDate = issueDate
+        self.passwordUpdate = passwordUpdate
 
         self.createUser = createUser
         self.saveUser = saveUser
@@ -101,20 +106,20 @@ public final class AuthController {
         var user = try request.user()
 
         let (salt, secret) = try credentials.hashPassword(newPassword)
-        user.update(salt: salt, secret: secret)
+        user.update(salt: salt, secret: secret, now: passwordUpdate ?? Date())
         try saveUser(&user)
 
         return try token(user: user)
     }
 
     private func token(user: User) throws -> String {
-        let now = Date()
-
-        guard let expirationDate = 10.minutes.from(now) else {
-            throw Abort.serverError
+        let now = issueDate ?? Date()
+        guard
+            let expirationDate = 10.minutes.from(now) else {
+                throw Abort.serverError
         }
 
-        let jwt = try JWT(payload: [ExpirationTimeClaim(expirationDate), user],
+        let jwt = try JWT(payload: Node([ExpirationTimeClaim(expirationDate), user]),
                           signer: HS256(key: jwtKey))
 
         return try jwt.createToken()
@@ -122,7 +127,6 @@ public final class AuthController {
 }
 
 struct Password: Validatable, ValidationSuite, Equatable {
-
     let value: String
 
     public static func validate(input value: Password) throws {
@@ -135,7 +139,6 @@ struct Password: Validatable, ValidationSuite, Equatable {
 }
 
 struct UserCredentials: Credentials {
-
     let username: Name
     private let hash: HashProtocol
     private let password: Password

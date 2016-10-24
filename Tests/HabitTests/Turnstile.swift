@@ -4,7 +4,6 @@ import Cache
 import Turnstile
 
 extension Turnstile {
-
     static var testTurnstile: Turnstile {
         let cache = MemoryCache()
         let realm = AuthenticatorRealm(User.self)

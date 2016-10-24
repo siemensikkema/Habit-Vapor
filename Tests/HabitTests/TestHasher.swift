@@ -1,7 +1,6 @@
 import Vapor
 
 final class TestHasher: HashProtocol {
-
     var defaultKey: Bytes? {
         return nil
     }

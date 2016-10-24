@@ -7,15 +7,12 @@ import Quick
 import Turnstile
 
 final class UserEndpointsSpec: QuickSpec {
-
     override func spec() {
-
         beforeEach {
             Database.default = Database(MemoryDriver())
         }
 
         describe("me") {
-
             var response: JSON?
             var error: Error?
 
@@ -46,7 +43,6 @@ final class UserEndpointsSpec: QuickSpec {
             }
 
             context("nonexisting user") {
-
                 beforeEach {
                     performMeRequest()
                 }
@@ -57,9 +53,7 @@ final class UserEndpointsSpec: QuickSpec {
             }
 
             context("existing user") {
-
                 describe("response") {
-
                     beforeEach {
                         performMeRequest(with: .testUser())
                     }
