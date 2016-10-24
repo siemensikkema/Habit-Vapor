@@ -1,7 +1,14 @@
 {
 	"default": {
-		"port": "$PORT:8080",
+		"port": "8443",
 		"host": "0.0.0.0",
-		"securityLayer": "none"
-	}
+        "securityLayer": "tls",
+        "tls": {
+            "verifyHost": true,
+            "certificates": "files",
+            "certificateFile": "/etc/ssl/certs/cert.crt",
+            "privateKeyFile": "/etc/ssl/certs/key.pem",
+            "signature": "selfSigned"
+        }
+    }
 }
