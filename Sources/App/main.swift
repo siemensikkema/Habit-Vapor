@@ -5,7 +5,7 @@ import VaporMySQL
 
 private let drop = Droplet()
 private let jwtKey = try drop.config.data(for: AppKey.jwt)!.makeBytes()
-private let jwtAuthentication = JWTAuthentication(user: User.self, jwtKey: jwtKey)
+private let jwtAuthentication = JWTAuthentication(jwtKey: jwtKey, user: User.self)
 
 try drop.addProvider(VaporMySQL.Provider.self)
 

@@ -34,7 +34,6 @@ public final class JWTAuthentication: Middleware {
             let credentials = try getVerifiedCredentials(request: request)
             try subject.login(credentials: credentials, persist: false)
         } catch {
-            print(error)
             // do nothing, failed login will be handled by ProtectMiddleware
         }
 
@@ -42,13 +41,20 @@ public final class JWTAuthentication: Middleware {
     }
 
     private func getVerifiedCredentials(request: Request) throws -> Credentials {
-        guard
-            let jwt = try request.auth.header?.bearer.map({ try JWT(token: $0.string) }),
-            let credentials = try AuthenticatedUserCredentials(node: jwt.payload.node),
-            try jwt.verifySignatureWith(HS256(key: jwtKey)),
-            jwt.verifyClaims([ExpirationTimeClaim()]) else {
-                throw HabitError.couldNotLogIn
+        guard let bearer = request.auth.header?.bearer else {
+            throw HabitError.missingBearerHeader
         }
+
+        let jwt = try JWT(token: bearer.string)
+        let credentials = try AuthenticatedUserCredentials(node: jwt.payload)
+        
+        guard try jwt.verifySignatureWith(HS256(key: jwtKey)) else {
+            throw HabitError.couldNotVerifySignature
+        }
+        guard jwt.verifyClaims([ExpirationTimeClaim()]) else {
+            throw HabitError.couldNotVerifyClaims
+        }
+
         return credentials
     }
 }
@@ -59,12 +65,12 @@ struct AuthenticatedUserCredentials: Credentials {
 }
 
 extension AuthenticatedUserCredentials {
-    init?(node: Node) throws {
+    init(node: Node) throws {
         guard
             let user: Node = try node.extract(User.name),
             let id: String = try user.extract(User.Constants.id),
             let lastPasswordUpdate: Int = try user.extract(User.Constants.lastPasswordUpdate) else {
-                return nil
+                throw HabitError.couldNotLogIn
         }
 
         self.id = id
