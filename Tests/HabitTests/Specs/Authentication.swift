@@ -13,14 +13,14 @@ import Vapor
 extension Habit.User {
     static let testEmail = "elon@spacex.com"
     static let testPassword = "g0t0m@rs"
-    static let testName = "ElonMusk"
+    static let testUsername = "ElonMusk"
 
-    static func testUser(name: String = testName,
+    static func testUser(name: String = testUsername,
                          email: String = testEmail,
                          password: String = testPassword,
                          date: Date = Date()) -> Habit.User {
         return Habit.User(email: try! Email(value: testEmail).validated(),
-                          name: try! Name(value: testName).validated(),
+                          username: try! Username(value: testUsername).validated(),
                           salt: "",
                           secret: testPassword.bytes.hexString,
                           lastPasswordUpdate: date)
@@ -82,20 +82,20 @@ final class AuthenticationSpec: QuickSpec {
             }
         }
 
-        func logInUserWithName(_ name: String, password: String) {
-            performAction(controller.logIn, with: ["name": name, "password": password])
+        func logInUserWithEmail(_ email: String, password: String) {
+            performAction(controller.logIn, with: ["email": email, "password": password])
         }
 
         func registerUserWithEmail(_ email: String, name: String, password: String) {
             performAction(controller.register,
-                          with: ["email": email, "name": name, "password": password])
+                          with: ["email": email, "username": name, "password": password])
         }
 
         func updatePassword(_ password: String,
                             to newPassword: String,
-                            forUserWithName name: String) {
+                            forUserWithEmail email: String) {
             performAction(controller.updatePassword,
-                          with: ["name": name, "password": password, "new_password": newPassword])
+                          with: ["email": email, "password": password, "new_password": newPassword])
         }
 
         beforeEach {
@@ -104,9 +104,9 @@ final class AuthenticationSpec: QuickSpec {
                 hash: hasher,
                 issueDate: date,
                 passwordUpdate: date + 1,
-                createUser: { (email, name, salt, secret) in
+                createUser: { (email, username, salt, secret) in
                     User(email: email,
-                         name: name,
+                         username: username,
                          salt: salt,
                          secret: secret,
                          lastPasswordUpdate: date)
@@ -159,10 +159,10 @@ final class AuthenticationSpec: QuickSpec {
                 }
             }
 
-            fdescribe("valid user") {
+            describe("valid user") {
                 beforeEach {
                     registerUserWithEmail(User.testEmail,
-                                          name: User.testName,
+                                          name: User.testUsername,
                                           password: User.testPassword)
                     accessProtectedEndpointUsingToken(token)
 
@@ -183,7 +183,7 @@ final class AuthenticationSpec: QuickSpec {
             describe("login") {
                 context("user not found") {
                     beforeEach {
-                        logInUserWithName(User.testName, password: User.testPassword)
+                        logInUserWithEmail(User.testEmail, password: User.testPassword)
                     }
 
                     it("fails") {
@@ -196,7 +196,7 @@ final class AuthenticationSpec: QuickSpec {
                 context("incorrect password") {
                     beforeEach {
                         createUser()
-                        logInUserWithName(User.testName, password: "")
+                        logInUserWithEmail(User.testEmail, password: "")
                     }
 
                     it("fails") {
@@ -209,7 +209,7 @@ final class AuthenticationSpec: QuickSpec {
                 context("correct password") {
                     beforeEach {
                         createUser()
-                        logInUserWithName(User.testName, password: User.testPassword)
+                        logInUserWithEmail(User.testEmail, password: User.testPassword)
                     }
 
                     it("succeeds") {
@@ -232,7 +232,7 @@ final class AuthenticationSpec: QuickSpec {
                 context("new and valid user") {
                     beforeEach {
                         registerUserWithEmail(User.testEmail,
-                                              name: User.testName,
+                                              name: User.testUsername,
                                               password: User.testPassword)
                     }
 
@@ -259,7 +259,7 @@ final class AuthenticationSpec: QuickSpec {
                     beforeEach {
                         createUser()
                         registerUserWithEmail(User.testEmail,
-                                              name: User.testName,
+                                              name: User.testUsername,
                                               password: User.testPassword)
                     }
 
@@ -277,7 +277,7 @@ final class AuthenticationSpec: QuickSpec {
                     beforeEach {
                         performAction(
                             controller.register,
-                            with: ["name": User.testName, "password": User.testPassword])
+                            with: ["username": User.testUsername, "password": User.testPassword])
                     }
 
                     it("fails") {
@@ -288,7 +288,7 @@ final class AuthenticationSpec: QuickSpec {
 
                 context("invalid email") {
                     beforeEach {
-                        registerUserWithEmail("", name: User.testName, password: User.testEmail)
+                        registerUserWithEmail("", name: User.testUsername, password: User.testEmail)
                     }
 
                     it("fails") {
@@ -296,16 +296,16 @@ final class AuthenticationSpec: QuickSpec {
                     }
                 }
 
-                context("missing name") {
+                context("missing email") {
                     beforeEach {
                         performAction(
                             controller.register,
-                            with: ["email": User.testName, "password": User.testPassword])
+                            with: ["username": User.testUsername, "password": User.testPassword])
                     }
 
                     it("fails") {
                         expect(error as? Abort) == .custom(status: .badRequest,
-                                                           message: "Name is missing")
+                                                           message: "Email is missing")
                     }
                 }
 
@@ -321,7 +321,7 @@ final class AuthenticationSpec: QuickSpec {
 
                 context("invalid password") {
                     beforeEach {
-                        registerUserWithEmail(User.testEmail, name: User.testName, password: "")
+                        registerUserWithEmail(User.testEmail, name: User.testUsername, password: "")
                     }
 
                     it("fails") {
@@ -333,7 +333,7 @@ final class AuthenticationSpec: QuickSpec {
                     beforeEach {
                         performAction(
                             controller.register,
-                            with: ["email": User.testName, "name": User.testName])
+                            with: ["email": User.testUsername, "username": User.testUsername])
                     }
 
                     it("fails") {
@@ -348,7 +348,7 @@ final class AuthenticationSpec: QuickSpec {
                     beforeEach {
                         updatePassword(User.testPassword,
                                        to: User.testPassword,
-                                       forUserWithName: User.testName)
+                                       forUserWithEmail: User.testEmail)
                     }
 
                     it("fails") {
@@ -367,7 +367,7 @@ final class AuthenticationSpec: QuickSpec {
                         createUser()
                         updatePassword(User.testPassword,
                                        to: "\(User.testPassword)2",
-                                       forUserWithName: User.testName)
+                                       forUserWithEmail: User.testEmail)
                     }
                     
                     it("succeeds") {
@@ -392,7 +392,7 @@ final class AuthenticationSpec: QuickSpec {
                         beforeEach {
                             updatePassword(User.testPassword,
                                            to: "",
-                                           forUserWithName: User.testName)
+                                           forUserWithEmail: User.testEmail)
                         }
                         
                         it("fails") {

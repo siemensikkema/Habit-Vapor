@@ -61,7 +61,7 @@ final class UserEndpointsSpec: QuickSpec {
                     it("contains name and email") {
                         expect(response) == JSON([
                             "email": .string(User.testEmail),
-                            "name": .string(User.testName)])
+                            "username": .string(User.testUsername)])
                     }
                 }
             }

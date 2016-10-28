@@ -12,10 +12,10 @@ struct Email: ValidationSuite, Validatable {
     }
 }
 
-struct Name: ValidationSuite, Validatable {
+struct Username: ValidationSuite, Validatable {
     let value: String
 
-    public static func validate(input value: Name) throws {
+    public static func validate(input value: Username) throws {
         let evaluation = OnlyAlphanumeric.self
             && Count.min(2)
             && Count.max(50)
@@ -31,7 +31,7 @@ public final class User: Model {
     struct Constants {
         static let email = "email"
         static let id = "id"
-        static let name = "name"
+        static let username = "username"
         static let lastPasswordUpdate = "last_password_update"
         static let salt = "salt"
         static let secret = "secret"
@@ -41,23 +41,27 @@ public final class User: Model {
     public var id: Node?
 
     var email: Email
-    var name: Name
+    var username: Username
     fileprivate var secret: Secret
     fileprivate var salt: Salt
     fileprivate var lastPasswordUpdate: Date
 
-    convenience init(email: Valid<Email>, name: Valid<Name>, salt: Salt, secret: Secret) {
-        self.init(email: email, name: name, salt: salt, secret: secret, lastPasswordUpdate: Date())
+    convenience init(email: Valid<Email>, username: Valid<Username>, salt: Salt, secret: Secret) {
+        self.init(email: email,
+                  username: username,
+                  salt: salt,
+                  secret: secret,
+                  lastPasswordUpdate: Date())
     }
 
     init(email: Valid<Email>,
-         name: Valid<Name>,
+         username: Valid<Username>,
          salt: Salt,
          secret: Secret,
          lastPasswordUpdate: Date) {
         self.email = email.value
         self.lastPasswordUpdate = lastPasswordUpdate
-        self.name = name.value
+        self.username = username.value
         self.salt = salt
         self.secret = secret
     }
@@ -66,15 +70,15 @@ public final class User: Model {
     public init(node: Node, in context: Context) throws {
         email = Email(value: try node.extract(Constants.email))
         id = try node.extract(Constants.id)
-        name = Name(value: try node.extract(Constants.name))
+        username = Username(value: try node.extract(Constants.username))
         lastPasswordUpdate = try node.extract(Constants.lastPasswordUpdate,
                                               transform: Date.init(timeIntervalSince1970:))
         salt = try node.extract(Constants.salt)
         secret = try node.extract(Constants.secret)
     }
 
-    static func findByName(_ name: Name) throws -> User? {
-        return try User.query().filter(Constants.name, name.value).first()
+    static func find(by email: Email) throws -> User? {
+        return try User.query().filter(Constants.email, email.value).first()
     }
 }
 
@@ -82,7 +86,7 @@ public final class User: Model {
 extension User {
     public func makeResponse() throws -> Response {
         return try JSON([
-            Constants.name: .string(name.value),
+            Constants.username: .string(username.value),
             Constants.email: .string(email.value)])
             .makeResponse()
     }
@@ -94,7 +98,7 @@ extension User {
         return try Node(node: [
             Constants.email: email.value,
             Constants.id: id,
-            Constants.name: name.value,
+            Constants.username: username.value,
             Constants.lastPasswordUpdate: lastPasswordUpdate.timeIntervalSince1970,
             Constants.salt: salt,
             Constants.secret: secret
@@ -109,7 +113,7 @@ extension User {
             users.id()
             users.double(Constants.lastPasswordUpdate)
             users.string(Constants.email)
-            users.string(Constants.name)
+            users.string(Constants.username)
             users.string(Constants.salt)
             users.string(Constants.secret)
         }
@@ -138,7 +142,7 @@ extension User: Auth.User {
 
         case let credentials as UserCredentials:
             guard
-                let user = try User.findByName(credentials.username),
+                let user = try User.find(by: credentials.email),
                 try credentials.hashPassword(using: user.salt).secret == user.secret else {
                     throw Abort.custom(status: .badRequest,
                                        message: "User not found or incorrect password")
