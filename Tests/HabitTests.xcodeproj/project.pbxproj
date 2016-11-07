@@ -9,8 +9,8 @@
 /* Begin PBXBuildFile section */
 		5F1F17E31DC37F170010BAB6 /* Nimble.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FC42CB01D9D89FC00A3130E /* Nimble.framework */; };
 		5F1F17E41DC37F170010BAB6 /* Quick.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5FC42CB11D9D89FC00A3130E /* Quick.framework */; };
-		5F1F17E51DC37F2E0010BAB6 /* Quick.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5FC42CB11D9D89FC00A3130E /* Quick.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		5F1F17E61DC37F350010BAB6 /* Nimble.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5FC42CB01D9D89FC00A3130E /* Nimble.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		5F1F17E51DC37F2E0010BAB6 /* Quick.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5FC42CB11D9D89FC00A3130E /* Quick.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		5F1F17E61DC37F350010BAB6 /* Nimble.framework in CopyFiles */ = {isa = PBXBuildFile; fileRef = 5FC42CB01D9D89FC00A3130E /* Nimble.framework */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		5F81C6601D9FC5450012F3E0 /* Authentication.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F81C65E1D9FC5450012F3E0 /* Authentication.swift */; };
 		5F81C6611D9FC5450012F3E0 /* User endpoints.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F81C65F1D9FC5450012F3E0 /* User endpoints.swift */; };
 		5F81C6631D9FCA940012F3E0 /* Request.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F81C6621D9FCA940012F3E0 /* Request.swift */; };
@@ -334,7 +334,7 @@
 			isa = PBXContainerItemProxy;
 			containerPortal = 5FC42BDD1D9D7D9500A3130E /* Habit-Vapor.xcodeproj */;
 			proxyType = 1;
-			remoteGlobalIDString = "______Target_Habit";
+			remoteGlobalIDString = OBJ_3831;
 			remoteInfo = Habit;
 		};
 /* End PBXContainerItemProxy section */
@@ -519,8 +519,8 @@
 				TargetAttributes = {
 					5FC42CA31D9D862400A3130E = {
 						CreatedOnToolsVersion = 8.0;
-						DevelopmentTeam = VWZ8DUTWFQ;
-						ProvisioningStyle = Automatic;
+						DevelopmentTeam = SVLC8Q2884;
+						ProvisioningStyle = Manual;
 					};
 				};
 			};
@@ -961,20 +961,14 @@
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_SUSPICIOUS_MOVES = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				DEVELOPMENT_TEAM = VWZ8DUTWFQ;
+				DEVELOPMENT_TEAM = SVLC8Q2884;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Carthage/Build/Mac",
-				);
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -992,7 +986,6 @@
 				INFOPLIST_FILE = HabitTests.xcodeproj/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 10.12;
-				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = nl.unclutter.HabitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1021,20 +1014,14 @@
 				CLANG_WARN_INFINITE_RECURSION = YES;
 				CLANG_WARN_INT_CONVERSION = YES;
 				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_SUSPICIOUS_MOVES = YES;
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
-				CODE_SIGN_IDENTITY = "-";
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
-				DEVELOPMENT_TEAM = VWZ8DUTWFQ;
+				DEVELOPMENT_TEAM = SVLC8Q2884;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				FRAMEWORK_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/Carthage/Build/Mac",
-				);
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -1046,7 +1033,6 @@
 				INFOPLIST_FILE = HabitTests.xcodeproj/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @loader_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 10.12;
-				MTL_ENABLE_DEBUG_INFO = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = nl.unclutter.HabitTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

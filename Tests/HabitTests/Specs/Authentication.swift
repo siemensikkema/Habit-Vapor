@@ -86,8 +86,8 @@ final class AuthenticationSpec: QuickSpec {
             performAction(controller.logIn, with: ["email": email, "password": password])
         }
 
-        func registerUserWithEmail(_ email: String, name: String, password: String) {
-            performAction(controller.register,
+        func signUpUserWithEmail(_ email: String, name: String, password: String) {
+            performAction(controller.signUp,
                           with: ["email": email, "username": name, "password": password])
         }
 
@@ -161,7 +161,7 @@ final class AuthenticationSpec: QuickSpec {
 
             describe("valid user") {
                 beforeEach {
-                    registerUserWithEmail(User.testEmail,
+                    signUpUserWithEmail(User.testEmail,
                                           name: User.testUsername,
                                           password: User.testPassword)
                     accessProtectedEndpointUsingToken(token)
@@ -228,10 +228,10 @@ final class AuthenticationSpec: QuickSpec {
                 }
             }
 
-            describe("register") {
+            describe("sign up") {
                 context("new and valid user") {
                     beforeEach {
-                        registerUserWithEmail(User.testEmail,
+                        signUpUserWithEmail(User.testEmail,
                                               name: User.testUsername,
                                               password: User.testPassword)
                     }
@@ -258,7 +258,7 @@ final class AuthenticationSpec: QuickSpec {
                 context("existing user") {
                     beforeEach {
                         createUser()
-                        registerUserWithEmail(User.testEmail,
+                        signUpUserWithEmail(User.testEmail,
                                               name: User.testUsername,
                                               password: User.testPassword)
                     }
@@ -276,7 +276,7 @@ final class AuthenticationSpec: QuickSpec {
                 context("missing email") {
                     beforeEach {
                         performAction(
-                            controller.register,
+                            controller.signUp,
                             with: ["username": User.testUsername, "password": User.testPassword])
                     }
 
@@ -288,7 +288,7 @@ final class AuthenticationSpec: QuickSpec {
 
                 context("invalid email") {
                     beforeEach {
-                        registerUserWithEmail("", name: User.testUsername, password: User.testEmail)
+                        signUpUserWithEmail("", name: User.testUsername, password: User.testEmail)
                     }
 
                     it("fails") {
@@ -299,7 +299,7 @@ final class AuthenticationSpec: QuickSpec {
                 context("missing email") {
                     beforeEach {
                         performAction(
-                            controller.register,
+                            controller.signUp,
                             with: ["username": User.testUsername, "password": User.testPassword])
                     }
 
@@ -311,7 +311,7 @@ final class AuthenticationSpec: QuickSpec {
 
                 context("invalid name") {
                     beforeEach {
-                        registerUserWithEmail(User.testEmail, name: "", password: User.testPassword)
+                        signUpUserWithEmail(User.testEmail, name: "", password: User.testPassword)
                     }
 
                     it("fails") {
@@ -321,7 +321,7 @@ final class AuthenticationSpec: QuickSpec {
 
                 context("invalid password") {
                     beforeEach {
-                        registerUserWithEmail(User.testEmail, name: User.testUsername, password: "")
+                        signUpUserWithEmail(User.testEmail, name: User.testUsername, password: "")
                     }
 
                     it("fails") {
@@ -332,7 +332,7 @@ final class AuthenticationSpec: QuickSpec {
                 context("missing password") {
                     beforeEach {
                         performAction(
-                            controller.register,
+                            controller.signUp,
                             with: ["email": User.testUsername, "username": User.testUsername])
                     }
 

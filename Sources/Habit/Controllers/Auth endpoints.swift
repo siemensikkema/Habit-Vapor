@@ -67,7 +67,7 @@ public final class AuthController {
         return try token(user: user)
     }
 
-    public func register(_ request: Request) throws -> ResponseRepresentable {
+    public func signUp(_ request: Request) throws -> ResponseRepresentable {
         let values = try extractValues(request.data)
         guard let username: Valid<Username> = try values.username?.validated() else {
             throw Abort.custom(status: .badRequest, message: "Username is missing")

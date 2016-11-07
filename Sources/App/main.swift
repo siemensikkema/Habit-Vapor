@@ -17,7 +17,7 @@ private let authController = AuthController(jwtKey: jwtKey, hash: drop.hash)
 drop.group("auth") {
     $0.post("update_password", handler: authController.updatePassword)
     $0.post("log_in", handler: authController.logIn)
-    $0.post("register", handler: authController.register)
+    $0.post("sign_up", handler: authController.signUp)
 }
 
 // '/api'
