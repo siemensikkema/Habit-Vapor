@@ -9,7 +9,7 @@ let package = Package(
         .Package(url: "https://github.com/vapor/vapor.git", majorVersion: 1),
         .Package(url: "https://github.com/vapor/mysql-provider.git", majorVersion: 1),
         .Package(url: "https://github.com/siemensikkema/vapor-jwt.git", majorVersion: 0),
-        .Package(url: "https://github.com/harlanhaskins/Punctual.swift.git", majorVersion: 2),
+        .Package(url: "https://github.com/siemensikkema/Punctual.swift.git", majorVersion: 2),
         ],
     exclude: [
         "Config",
