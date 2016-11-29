@@ -4,13 +4,13 @@ import Vapor
 import VaporMySQL
 
 private let drop = Droplet()
-private let jwtKey = try drop.config.data(for: AppKey.jwt)!.makeBytes()
-private let jwtAuthentication = JWTAuthentication(jwtKey: jwtKey, user: User.self)
-
 try drop.addProvider(VaporMySQL.Provider.self)
-
-drop.middleware.append(jwtAuthentication)
 drop.preparations.append(User.self)
+
+private let jwtKey = try drop.config.data(for: AppKey.jwt)!.makeBytes()
+
+drop.middleware.append(AuthMiddleware<Habit.User>())
+drop.middleware.append(JWTMiddleware(jwtKey: jwtKey))
 
 // '/auth'
 private let authController = AuthController(jwtKey: jwtKey, hash: drop.hash)
@@ -21,6 +21,7 @@ drop.group("auth") {
 }
 
 // '/api'
+
 private let credentialError = Abort.custom(status: .forbidden, message: "Invalid credentials")
 private let protect = ProtectMiddleware(error: credentialError)
 

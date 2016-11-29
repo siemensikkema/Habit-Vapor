@@ -105,8 +105,8 @@ public final class AuthController {
         try request.auth.login(credentials, persist: false)
         var user = try request.user()
 
-        let (salt, secret) = try credentials.hashPassword(newPassword)
-        user.update(salt: salt, secret: secret, now: passwordUpdate ?? Date())
+        let hashedPassword = try credentials.hashPassword(newPassword)
+        user.update(hashedPassword: hashedPassword, now: passwordUpdate ?? Date())
         try saveUser(&user)
 
         return try token(user: user)
@@ -138,6 +138,8 @@ struct Password: Validatable, ValidationSuite, Equatable {
     }
 }
 
+typealias HashedPassword = (secret: User.Secret, salt: User.Salt)
+
 struct UserCredentials: Credentials {
     let email: Email
     private let hash: HashProtocol
@@ -148,8 +150,6 @@ struct UserCredentials: Credentials {
         self.hash = hash
         self.password = password
     }
-
-    typealias HashedPassword = (secret: User.Secret, salt: User.Salt)
 
     /// Hashes password using salt
     ///

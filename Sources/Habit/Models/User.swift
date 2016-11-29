@@ -126,35 +126,15 @@ extension User {
 
 extension User: Auth.User {
     public static func authenticate(credentials: Credentials) throws -> Auth.User {
-        let authenticatedUser: User
-
         switch credentials {
-        case let credentials as AuthenticatedUserCredentials:
-            guard let user = try User.find(credentials.id) else {
-                throw Abort.custom(status: .badRequest, message: "User not found")
-            }
-            guard
-                Int(user.lastPasswordUpdate.timeIntervalSince1970) <=
-                Int(credentials.lastPasswordUpdate.timeIntervalSince1970) else {
-                    throw Abort.custom(status: .forbidden, message: "Incorrect password")
-            }
-            authenticatedUser = user
-
-        case let credentials as UserCredentials:
-            guard
-                let user = try User.find(by: credentials.email),
-                try credentials.hashPassword(using: user.salt).secret == user.secret else {
-                    throw Abort.custom(status: .badRequest,
-                                       message: "User not found or incorrect password")
-            }
-            authenticatedUser = user
-
+        case let node as Node:
+            return try node.user()
+        case let userCredentials as UserCredentials:
+            return try userCredentials.user()
         default:
             let type = type(of: credentials)
             throw Abort.custom(status: .forbidden, message: "Unsupported credential type: \(type).")
         }
-
-        return authenticatedUser
     }
 
     public static func register(credentials: Credentials) throws -> Auth.User {
@@ -163,10 +143,10 @@ extension User: Auth.User {
 }
 
 extension User {
-    func update(salt: Salt, secret: Secret, now: Date) {
+    func update(hashedPassword: HashedPassword, now: Date) {
         lastPasswordUpdate = now
-        self.salt = salt
-        self.secret = secret
+        salt = hashedPassword.salt
+        secret = hashedPassword.secret
     }
 }
 
@@ -183,6 +163,40 @@ extension Request {
             throw Abort.custom(status: .badRequest, message: "Invalid user type.")
         }
         
+        return user
+    }
+}
+
+extension Node {
+    fileprivate func user() throws -> User {
+        guard
+            let userInfo: Node = try extract(User.name),
+            let id: String = try userInfo.extract(User.Constants.id),
+            let lastPasswordUpdate: Int = try userInfo.extract(User.Constants.lastPasswordUpdate)
+            else {
+                throw HabitError.couldNotLogIn
+        }
+
+        guard let user = try User.find(id) else {
+            throw Abort.custom(status: .badRequest, message: "User not found")
+        }
+
+        guard Int(user.lastPasswordUpdate.timeIntervalSince1970) <= Int(lastPasswordUpdate) else {
+            throw Abort.custom(status: .forbidden, message: "Incorrect password")
+        }
+
+        return user
+    }
+}
+
+extension UserCredentials {
+    fileprivate func user() throws -> User {
+        guard
+            let user = try User.find(by: email),
+            try hashPassword(using: user.salt).secret == user.secret else {
+                throw Abort.custom(status: .badRequest,
+                                   message: "User not found or incorrect password")
+        }
         return user
     }
 }
